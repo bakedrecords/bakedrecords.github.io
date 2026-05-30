@@ -1,0 +1,417 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Live House Payback Simulator — Bakedrecords</title>
+  <meta name="description" content="ライブハウスのチケットバック・精算を計算するシミュレーター。バック条件を自由に設定して比較できます。">
+
+  <!-- Tailwind CSS (Play CDN) -->
+  <script src="https://cdn.tailwindcss.com"></script>
+
+  <!-- React + ReactDOM (UMD) -->
+  <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+  <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+
+  <!-- Babel Standalone: JSXをブラウザ上で変換 -->
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+
+  <style>
+    body { background: #0f172a; }
+    /* breadcrumb */
+    .breadcrumb-bar {
+      background: #1e293b;
+      color: #cbd5e1;
+      font-size: 0.85rem;
+      padding: 10px 20px;
+      border-bottom: 1px solid #334155;
+    }
+    .breadcrumb-bar a { color: #818cf8; text-decoration: none; }
+    .breadcrumb-bar a:hover { text-decoration: underline; }
+  </style>
+</head>
+<body>
+  <div class="breadcrumb-bar">
+    <a href="/">← Bakedrecords トップへ</a>
+  </div>
+
+  <div id="root"></div>
+
+  <script type="text/babel" data-presets="react">
+    const { useState, useMemo } = React;
+
+    // --- アイコン (lucide-react の代わりに簡易SVGコンポーネント) ---
+    const Icon = ({ d, className = "w-5 h-5", strokeWidth = 2 }) => (
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none"
+           stroke="currentColor" strokeWidth={strokeWidth}
+           strokeLinecap="round" strokeLinejoin="round" className={className}>
+        {d}
+      </svg>
+    );
+    const Users      = (p) => <Icon {...p} d={<><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></>}/>;
+    const Ticket     = (p) => <Icon {...p} d={<><path d="M2 9a3 3 0 0 1 0 6v2a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-2a3 3 0 0 1 0-6V7a2 2 0 0 0-2-2H4a2 2 0 0 0-2 2z"/><path d="M13 5v2"/><path d="M13 17v2"/><path d="M13 11v2"/></>}/>;
+    const Percent    = (p) => <Icon {...p} d={<><line x1="19" y1="5" x2="5" y2="19"/><circle cx="6.5" cy="6.5" r="2.5"/><circle cx="17.5" cy="17.5" r="2.5"/></>}/>;
+    const Calculator = (p) => <Icon {...p} d={<><rect x="4" y="2" width="16" height="20" rx="2"/><line x1="8" y1="6" x2="16" y2="6"/><line x1="16" y1="14" x2="16" y2="18"/><line x1="8" y1="14" x2="8.01" y2="14"/><line x1="12" y1="14" x2="12.01" y2="14"/><line x1="8" y1="18" x2="8.01" y2="18"/><line x1="12" y1="18" x2="12.01" y2="18"/></>}/>;
+    const Plus       = (p) => <Icon {...p} d={<><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></>}/>;
+    const Trash2     = (p) => <Icon {...p} d={<><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></>}/>;
+    const Music      = (p) => <Icon {...p} d={<><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></>}/>;
+    const BarChart3  = (p) => <Icon {...p} d={<><path d="M3 3v18h18"/><path d="M8 17V9"/><path d="M13 17V5"/><path d="M18 17v-3"/></>}/>;
+    const TrendingUp = (p) => <Icon {...p} d={<><polyline points="22 7 13.5 15.5 8.5 10.5 2 17"/><polyline points="16 7 22 7 22 13"/></>}/>;
+    const TrendingDown = (p) => <Icon {...p} d={<><polyline points="22 17 13.5 8.5 8.5 13.5 2 7"/><polyline points="16 17 22 17 22 11"/></>}/>;
+
+    const LiveHouseCalc = () => {
+      const [ticketPrice, setTicketPrice] = useState(2500);
+      const [audienceCount, setAudienceCount] = useState(15);
+      const [calculationMode, setCalculationMode] = useState('total');
+      const [conditions, setConditions] = useState([
+        { id: 1, threshold: 0, percentage: 50 },
+      ]);
+
+      const sortedConditions = useMemo(() => {
+        return [...conditions].sort((a, b) => a.threshold - b.threshold);
+      }, [conditions]);
+
+      const activeCondition = useMemo(() => {
+        const descending = [...conditions].sort((a, b) => b.threshold - a.threshold);
+        return descending.find(c => audienceCount >= c.threshold) || conditions[0];
+      }, [audienceCount, conditions]);
+
+      const totalSales = ticketPrice * audienceCount;
+      let bandBackAmount = 0;
+
+      if (calculationMode === 'total') {
+        bandBackAmount = Math.floor(totalSales * (activeCondition.percentage / 100));
+      } else {
+        let totalBandBack = 0;
+        if (audienceCount > 0) {
+          const tiers = [...conditions].sort((a, b) => a.threshold - b.threshold);
+          for (let i = 0; i < tiers.length; i++) {
+            const tier = tiers[i];
+            const tierStart = tier.threshold > 0 ? tier.threshold : 1;
+            const nextTier = tiers[i + 1];
+            const tierEnd = nextTier ? nextTier.threshold - 1 : audienceCount;
+            if (tierStart > audienceCount) break;
+            const peopleInTier = Math.min(audienceCount, tierEnd) - tierStart + 1;
+            if (peopleInTier > 0) {
+              const salesInThisTier = peopleInTier * ticketPrice;
+              const backInThisTier = Math.floor(salesInThisTier * (tier.percentage / 100));
+              totalBandBack += backInThisTier;
+            }
+          }
+        }
+        bandBackAmount = totalBandBack;
+      }
+
+      const venueKeepAmount = totalSales - bandBackAmount;
+      const finalPercentage = totalSales > 0 ? (bandBackAmount / totalSales) * 100 : 0;
+
+      const addCondition = () => {
+        const newId = Math.max(...conditions.map(c => c.id), 0) + 1;
+        const maxThreshold = Math.max(...conditions.map(c => c.threshold), 0);
+        setConditions([...conditions, { id: newId, threshold: maxThreshold + 10, percentage: 50 }]);
+      };
+
+      const removeCondition = (id) => {
+        if (conditions.length <= 1) return;
+        setConditions(conditions.filter(c => c.id !== id));
+      };
+
+      const updateCondition = (id, field, value) => {
+        setConditions(conditions.map(c =>
+          c.id === id ? { ...c, [field]: Number(value) } : c
+        ));
+      };
+
+      const formatCurrency = (num) => {
+        return new Intl.NumberFormat('ja-JP', { style: 'currency', currency: 'JPY' }).format(num);
+      };
+
+      const handleAudienceChange = (delta) => {
+        setAudienceCount(prev => {
+          const newCount = prev + delta;
+          return Math.max(0, Math.min(100, newCount));
+        });
+      };
+
+      const displayPercentage = calculationMode === 'total'
+        ? activeCondition.percentage
+        : Math.round(finalPercentage * 10) / 10;
+
+      const displayThresholdInfo = calculationMode === 'total'
+        ? `(${activeCondition.threshold}人〜の条件)`
+        : '実質バック率';
+
+      return (
+        <div className="min-h-screen bg-slate-900 text-slate-100 font-sans p-4 md:p-8">
+          <div className="max-w-5xl mx-auto">
+            <header className="mb-8 flex items-center gap-3 border-b border-slate-700 pb-4">
+              <div className="p-3 bg-indigo-600 rounded-lg shadow-lg shadow-indigo-500/20">
+                <Music className="w-6 h-6 text-white" />
+              </div>
+              <div>
+                <h1 className="text-2xl font-bold text-white">Live House Payback Simulator</h1>
+                <p className="text-slate-400 text-sm">チケットバック・精算シミュレーター</p>
+              </div>
+            </header>
+
+            <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
+              <div className="lg:col-span-5 space-y-6">
+                <section className="bg-slate-800 rounded-xl p-6 border border-slate-700 shadow-sm">
+                  <h2 className="text-lg font-semibold flex items-center gap-2 mb-4 text-indigo-300">
+                    <Ticket className="w-5 h-5" />
+                    基本設定
+                  </h2>
+                  <div>
+                    <label className="block text-sm text-slate-400 mb-1">チケット料金 (円)</label>
+                    <div className="relative">
+                      <input
+                        type="number"
+                        value={ticketPrice}
+                        onChange={(e) => setTicketPrice(Math.max(0, Number(e.target.value)))}
+                        className="w-full bg-slate-900 border border-slate-600 rounded-lg py-3 pl-4 pr-14 text-xl font-mono text-white focus:ring-2 focus:ring-indigo-500 outline-none transition-all"
+                      />
+                      <span className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-500">JPY</span>
+                    </div>
+                  </div>
+                </section>
+
+                <section className="bg-slate-800 rounded-xl p-6 border border-slate-700 shadow-sm">
+                  <h2 className="text-lg font-semibold flex items-center gap-2 mb-4 text-indigo-300">
+                    <BarChart3 className="w-5 h-5" />
+                    バック計算方式の選択
+                  </h2>
+                  <div className="space-y-3">
+                    <label className={`flex items-center p-3 rounded-lg cursor-pointer transition-all ${
+                      calculationMode === 'total' ? 'bg-indigo-700/30 border-indigo-500 ring-2 ring-indigo-500' : 'bg-slate-900 border border-slate-700 hover:border-indigo-500'
+                    }`}>
+                      <input
+                        type="radio"
+                        name="calcMode"
+                        value="total"
+                        checked={calculationMode === 'total'}
+                        onChange={() => setCalculationMode('total')}
+                        className="form-radio h-4 w-4 text-indigo-500 focus:ring-indigo-500 bg-slate-800 border-slate-600 mr-3"
+                      />
+                      <div>
+                        <span className="font-semibold text-white flex items-center gap-2">全体適用 <TrendingUp className='w-4 h-4 text-indigo-400'/></span>
+                        <p className="text-xs text-slate-400 mt-1">
+                          達成した最高条件のバック率を、総売上全体に適用します。
+                        </p>
+                      </div>
+                    </label>
+
+                    <label className={`flex items-center p-3 rounded-lg cursor-pointer transition-all ${
+                      calculationMode === 'incremental' ? 'bg-indigo-700/30 border-indigo-500 ring-2 ring-indigo-500' : 'bg-slate-900 border border-slate-700 hover:border-indigo-500'
+                    }`}>
+                      <input
+                        type="radio"
+                        name="calcMode"
+                        value="incremental"
+                        checked={calculationMode === 'incremental'}
+                        onChange={() => setCalculationMode('incremental')}
+                        className="form-radio h-4 w-4 text-indigo-500 focus:ring-indigo-500 bg-slate-800 border-slate-600 mr-3"
+                      />
+                      <div>
+                        <span className="font-semibold text-white flex items-center gap-2">超過分適用 <TrendingDown className='w-4 h-4 text-indigo-400'/></span>
+                        <p className="text-xs text-slate-400 mt-1">
+                          基本バック率を維持し、条件を超えた人数分の売上に対してのみ高いバック率を適用します。
+                        </p>
+                      </div>
+                    </label>
+                  </div>
+                </section>
+
+                <section className="bg-slate-800 rounded-xl p-6 border border-slate-700 shadow-sm">
+                  <div className="flex justify-between items-center mb-4">
+                    <h2 className="text-lg font-semibold flex items-center gap-2 text-indigo-300">
+                      <Percent className="w-5 h-5" />
+                      バック条件設定
+                    </h2>
+                    <button
+                      onClick={addCondition}
+                      className="text-xs bg-indigo-600 hover:bg-indigo-500 text-white px-3 py-1.5 rounded-full flex items-center gap-1 transition-colors"
+                    >
+                      <Plus className="w-3 h-3" /> 条件追加
+                    </button>
+                  </div>
+
+                  <div className="space-y-3">
+                    {sortedConditions.map((cond) => (
+                      <div
+                        key={cond.id}
+                        className={`flex items-center gap-2 p-3 rounded-lg border transition-all ${
+                          (calculationMode === 'total' && activeCondition.id === cond.id)
+                            ? 'bg-indigo-900/30 border-indigo-500 ring-1 ring-indigo-500'
+                            : 'bg-slate-900 border-slate-700'
+                        }`}
+                      >
+                        <div className="flex-1 grid grid-cols-2 gap-2">
+                          <div>
+                            <label className="text-xs text-slate-500 block mb-1">人数条件 (1人〜)</label>
+                            <div className="flex items-center">
+                              <input
+                                type="number"
+                                value={cond.threshold}
+                                onChange={(e) => updateCondition(cond.id, 'threshold', e.target.value)}
+                                min={0}
+                                className="w-full bg-transparent border-b border-slate-600 focus:border-indigo-500 outline-none text-center font-mono"
+                              />
+                              <span className="text-xs text-slate-400 ml-1">人〜</span>
+                            </div>
+                          </div>
+                          <div>
+                            <label className="text-xs text-slate-500 block mb-1">バック率</label>
+                            <div className="flex items-center">
+                              <input
+                                type="number"
+                                value={cond.percentage}
+                                onChange={(e) => updateCondition(cond.id, 'percentage', e.target.value)}
+                                min={0}
+                                max={100}
+                                className="w-full bg-transparent border-b border-slate-600 focus:border-indigo-500 outline-none text-center font-mono text-emerald-400 font-bold"
+                              />
+                              <span className="text-xs text-slate-400 ml-1">%</span>
+                            </div>
+                          </div>
+                        </div>
+
+                        <button
+                          onClick={() => removeCondition(cond.id)}
+                          disabled={conditions.length === 1}
+                          className="p-2 text-slate-600 hover:text-red-400 disabled:opacity-30 disabled:cursor-not-allowed"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                  <p className="text-xs text-slate-500 mt-3">
+                    ※ 人数条件は0を設定すると1人目からの基本バック率になります。条件は「条件追加」で増やすことができます。
+                  </p>
+                </section>
+              </div>
+
+              <div className="lg:col-span-7 space-y-6">
+                <section className="bg-slate-800 rounded-xl p-6 border border-slate-700 shadow-sm">
+                  <h2 className="text-lg font-semibold flex items-center gap-2 mb-6 text-indigo-300">
+                    <Users className="w-5 h-5" />
+                    集客シミュレーション
+                  </h2>
+
+                  <div className="mb-8">
+                    <div className="flex justify-between text-sm text-slate-400 mb-2">
+                      <span>実際の集客数</span>
+                      <div className="flex items-center gap-2">
+                        <button
+                          onClick={() => handleAudienceChange(-1)}
+                          disabled={audienceCount <= 0}
+                          className="p-1 rounded-full bg-slate-700 hover:bg-slate-600 text-slate-300 disabled:opacity-30 transition-colors"
+                          aria-label="集客数を1減らす"
+                        >
+                          <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 12H4" />
+                          </svg>
+                        </button>
+
+                        <span className="text-2xl font-bold text-white font-mono min-w-[30px] text-center">
+                          {audienceCount}
+                        </span>
+                        <span className="text-sm font-sans font-normal text-slate-400">人</span>
+
+                        <button
+                          onClick={() => handleAudienceChange(1)}
+                          disabled={audienceCount >= 100}
+                          className="p-1 rounded-full bg-slate-700 hover:bg-slate-600 text-slate-300 disabled:opacity-30 transition-colors"
+                          aria-label="集客数を1増やす"
+                        >
+                          <Plus className="w-5 h-5" />
+                        </button>
+                      </div>
+                    </div>
+
+                    <input
+                      type="range"
+                      min="0"
+                      max="100"
+                      value={audienceCount}
+                      onChange={(e) => setAudienceCount(Number(e.target.value))}
+                      className="w-full h-3 bg-slate-700 rounded-lg appearance-none cursor-pointer accent-indigo-500"
+                    />
+                    <div className="flex justify-between text-xs text-slate-500 mt-2">
+                      <span>0人</span>
+                      <span>50人</span>
+                      <span>100人</span>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <div className="bg-slate-900 p-4 rounded-lg border border-slate-700 text-center">
+                      <div className="text-xs text-slate-400 mb-1">総売上</div>
+                      <div className="text-xl font-bold text-white font-mono">{formatCurrency(totalSales)}</div>
+                    </div>
+                    <div className="bg-slate-900 p-4 rounded-lg border border-indigo-500/50 bg-indigo-900/10 text-center relative overflow-hidden md:col-span-2">
+                      <div className="absolute top-0 left-0 w-1 h-full bg-indigo-500"></div>
+                      <div className="text-xs text-indigo-300 mb-1">
+                        {calculationMode === 'total' ? '適用バック率' : '実質バック率 (変動)'}
+                      </div>
+                      <div className="text-2xl font-bold text-indigo-400 font-mono">
+                        {displayPercentage} %
+                      </div>
+                      <div className="text-[10px] text-slate-500 mt-1">
+                        {displayThresholdInfo}
+                      </div>
+                    </div>
+                  </div>
+                </section>
+
+                <section className="bg-gradient-to-br from-slate-800 to-slate-900 rounded-xl p-6 border border-slate-700 shadow-lg">
+                  <h2 className="text-lg font-semibold flex items-center gap-2 mb-6 text-emerald-400">
+                    <Calculator className="w-5 h-5" />
+                    精算結果
+                  </h2>
+
+                  <div className="flex flex-col md:flex-row items-stretch gap-6">
+                    <div className="flex-1 flex flex-col justify-center">
+                      <div className="w-full h-16 bg-slate-700 rounded-full overflow-hidden flex">
+                        <div
+                          className="h-full bg-emerald-500 flex items-center justify-center text-emerald-950 font-bold text-sm transition-all duration-500 ease-out"
+                          style={{ width: `${finalPercentage}%` }}
+                        >
+                          {finalPercentage > 15 && 'BAND'}
+                        </div>
+                        <div
+                          className="h-full bg-slate-600 flex items-center justify-center text-slate-300 font-bold text-sm transition-all duration-500 ease-out"
+                          style={{ width: `${100 - finalPercentage}%` }}
+                        >
+                          {(100 - finalPercentage) > 15 && 'VENUE'}
+                        </div>
+                      </div>
+                      <div className="flex justify-between text-xs mt-2 px-2">
+                        <span className="text-emerald-400">バンド取り分 ({displayPercentage}%)</span>
+                        <span className="text-slate-400">ライブハウス取り分 ({(100 - displayPercentage).toFixed(1)}%)</span>
+                      </div>
+                    </div>
+
+                    <div className="flex-1 space-y-4">
+                      <div className="bg-slate-950/50 p-4 rounded-lg border-l-4 border-emerald-500 flex justify-between items-center">
+                        <span className="text-slate-300 text-sm">バンドへの支払い</span>
+                        <span className="text-2xl font-bold text-emerald-400 font-mono">{formatCurrency(bandBackAmount)}</span>
+                      </div>
+                      <div className="bg-slate-950/50 p-4 rounded-lg border-l-4 border-slate-600 flex justify-between items-center">
+                        <span className="text-slate-400 text-sm">ライブハウス収益</span>
+                        <span className="text-xl font-bold text-slate-300 font-mono">{formatCurrency(venueKeepAmount)}</span>
+                      </div>
+                    </div>
+                  </div>
+                </section>
+              </div>
+            </div>
+          </div>
+        </div>
+      );
+    };
+
+    ReactDOM.createRoot(document.getElementById('root')).render(<LiveHouseCalc />);
+  </script>
+</body>
+</html>
