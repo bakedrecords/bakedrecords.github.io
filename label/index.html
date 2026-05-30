@@ -1,0 +1,1122 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>原材料シール印刷アプリ</title>
+<style>
+  :root {
+    --bg: #faf8f5;
+    --panel: #ffffff;
+    --accent: #b5651d;
+    --accent-dark: #8f4f16;
+    --line: #e6ddd2;
+    --text: #3a322b;
+    --muted: #8c8077;
+    --danger: #c0392b;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    font-family: system-ui, -apple-system, "Hiragino Sans", "Yu Gothic", sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    font-size: 14px;
+  }
+  header {
+    background: var(--panel);
+    border-bottom: 1px solid var(--line);
+    padding: 10px 20px;
+    display: flex;
+    align-items: center;
+    gap: 20px;
+    position: sticky;
+    top: 0;
+    z-index: 50;
+  }
+  header h1 {
+    font-size: 16px;
+    margin: 0;
+    color: var(--accent-dark);
+    white-space: nowrap;
+  }
+  nav { display: flex; gap: 6px; }
+  nav button {
+    background: transparent;
+    border: none;
+    padding: 8px 14px;
+    border-radius: 8px;
+    cursor: pointer;
+    font-size: 14px;
+    color: var(--muted);
+    font-family: inherit;
+  }
+  nav button.active { background: var(--accent); color: #fff; }
+  nav button:not(.active):hover { background: #f1eae0; }
+
+  main { padding: 20px; max-width: 1200px; margin: 0 auto; }
+  .screen { display: none; }
+  .screen.active { display: block; }
+
+  /* ボタン */
+  .btn {
+    font-family: inherit;
+    font-size: 14px;
+    padding: 8px 14px;
+    border-radius: 8px;
+    border: 1px solid var(--line);
+    background: #fff;
+    color: var(--text);
+    cursor: pointer;
+  }
+  .btn:hover { background: #f6f1ea; }
+  .btn-primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+  .btn-primary:hover { background: var(--accent-dark); }
+  .btn-danger { color: var(--danger); border-color: #e8c4bf; }
+  .btn-danger:hover { background: #fdf0ee; }
+  .btn-sm { padding: 4px 9px; font-size: 13px; }
+  .btn-icon { padding: 4px 8px; font-size: 15px; line-height: 1; }
+
+  /* 商品一覧 */
+  .toolbar {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    align-items: center;
+    margin-bottom: 16px;
+  }
+  .toolbar input[type="text"], .toolbar select {
+    font-family: inherit;
+    font-size: 14px;
+    padding: 8px 10px;
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    background: #fff;
+  }
+  .toolbar .grow { flex: 1; min-width: 160px; }
+  .tag-filter { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 14px; }
+  .tag-chip {
+    font-size: 12px;
+    padding: 4px 10px;
+    border-radius: 999px;
+    border: 1px solid var(--line);
+    background: #fff;
+    cursor: pointer;
+    color: var(--muted);
+  }
+  .tag-chip.on { background: var(--accent); color: #fff; border-color: var(--accent); }
+
+  .product-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 12px; }
+  .product-card {
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    padding: 14px;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+  .product-card.pinned { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent) inset; }
+  .pc-head { display: flex; align-items: flex-start; gap: 8px; }
+  .pc-name { font-weight: 700; font-size: 15px; flex: 1; }
+  .pc-ing { color: var(--muted); font-size: 13px; line-height: 1.5; }
+  .pc-tags { display: flex; flex-wrap: wrap; gap: 5px; }
+  .pc-tag { font-size: 11px; background: #f1eae0; color: var(--accent-dark); padding: 2px 8px; border-radius: 999px; }
+  .pc-foot { display: flex; gap: 6px; align-items: center; margin-top: 4px; flex-wrap: wrap; }
+  .pc-usage { font-size: 12px; color: var(--muted); margin-right: auto; }
+  .usage-reset { border: none; background: none; cursor: pointer; color: var(--muted); font-size: 13px; padding: 0 3px; line-height: 1; }
+  .usage-reset:hover { color: var(--accent); }
+  .pin-btn { background: none; border: none; cursor: pointer; font-size: 20px; line-height: 1; color: #d8cdbe; padding: 0; }
+  .pin-btn.on { color: #f0a500; }
+  .empty-msg { color: var(--muted); text-align: center; padding: 40px; }
+
+  /* 選択中バー（カート） */
+  .cart-bar { background: #fff; border: 1px solid var(--accent); border-radius: 12px; padding: 12px 14px; margin-bottom: 16px; }
+  .cart-head { display: flex; align-items: center; gap: 10px; font-size: 13px; font-weight: 600; margin-bottom: 8px; flex-wrap: wrap; }
+  .cart-head > span:first-child { margin-right: auto; color: var(--accent-dark); }
+  .cart-chips { display: flex; flex-wrap: wrap; gap: 8px; }
+  .cart-chip { display: inline-flex; align-items: center; gap: 5px; background: #fbf3ea; border: 1px solid var(--line); border-radius: 999px; padding: 4px 6px 4px 12px; font-size: 13px; }
+  .cart-chip .cart-name { font-weight: 600; }
+  .cart-chip b { min-width: 16px; text-align: center; }
+  .cart-chip button { width: 22px; height: 22px; border-radius: 50%; border: 1px solid var(--line); background: #fff; cursor: pointer; font-size: 13px; line-height: 1; padding: 0; }
+  .cart-chip button:hover { background: #f1eae0; }
+  .cart-chip .cart-x { border: none; background: none; color: var(--muted); font-size: 16px; width: auto; }
+  .cart-chip .cart-x:hover { background: none; color: var(--danger); }
+  .cart-empty { color: var(--muted); font-size: 13px; }
+
+  /* 商品カードの「印刷に追加」ボタン */
+  .pc-add-btn { width: 100%; margin-top: 4px; padding: 8px; border: 1px solid var(--accent); background: #fff; color: var(--accent-dark); border-radius: 8px; cursor: pointer; font-family: inherit; font-size: 14px; font-weight: 600; }
+  .pc-add-btn:hover { background: var(--accent); color: #fff; }
+  .pc-add-btn.has { background: var(--accent); color: #fff; }
+
+  /* レイアウト画面 */
+  .layout-wrap { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+  @media (max-width: 900px) { .layout-wrap { grid-template-columns: 1fr; } }
+  .panel {
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    padding: 16px;
+  }
+  .panel h2 { font-size: 14px; margin: 0 0 12px; color: var(--accent-dark); }
+  .field { margin-bottom: 14px; }
+  .field > label { display: block; font-size: 13px; font-weight: 600; margin-bottom: 6px; }
+  .radio-row { display: flex; flex-wrap: wrap; gap: 6px; }
+  .radio-row label {
+    font-size: 13px;
+    border: 1px solid var(--line);
+    padding: 6px 10px;
+    border-radius: 8px;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    background: #fff;
+  }
+  .radio-row label.sel { border-color: var(--accent); background: #fbf3ea; }
+  .field input[type="date"], .field input[type="number"], .field select, .field input[type="text"] {
+    font-family: inherit; font-size: 14px; padding: 7px 9px;
+    border: 1px solid var(--line); border-radius: 8px; background: #fff;
+  }
+  .inline { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+
+  .layout-products { display: flex; flex-direction: column; gap: 6px; max-height: 420px; overflow-y: auto; }
+  .lp-row {
+    display: flex; align-items: center; gap: 8px;
+    border: 1px solid var(--line); border-radius: 8px; padding: 7px 10px;
+    cursor: pointer;
+  }
+  .lp-row:hover { background: #f6f1ea; }
+  .lp-name { flex: 1; font-size: 14px; }
+  .lp-count-ctrl { display: flex; align-items: center; gap: 4px; }
+  .lp-count-ctrl button { width: 26px; height: 26px; border-radius: 6px; border: 1px solid var(--line); background: #fff; cursor: pointer; font-size: 15px; line-height: 1; }
+  .lp-count-ctrl input { width: 42px; text-align: center; padding: 4px; border: 1px solid var(--line); border-radius: 6px; font-family: inherit; }
+
+  .preview-info { display: flex; align-items: center; gap: 12px; margin-bottom: 10px; flex-wrap: wrap; font-size: 13px; color: var(--muted); }
+  .preview-info .pager { display: flex; align-items: center; gap: 8px; margin-left: auto; }
+  .preview-wrap { background: #d9d2c8; border-radius: 8px; padding: 12px; overflow: auto; max-height: 70vh; }
+  .preview-scaler { position: relative; margin: 0 auto; }
+
+  /* 印刷ページ（画面プレビュー兼印刷用） */
+  #screen-print-area, #paper-print-area { transform-origin: top left; }
+  .print-page {
+    width: 210mm;
+    height: 297mm;
+    position: relative;
+    background: #fff;
+    overflow: hidden;
+  }
+  .print-page + .print-page { margin-top: 12px; }
+  .seal-box {
+    position: absolute;
+    overflow: hidden;
+    box-sizing: border-box;
+    color: #000;
+    transform: scale(0.99);          /* 中心固定で99%に縮小（印刷ズレの安全マージン） */
+    transform-origin: center center;
+  }
+  .seal-table {
+    width: 100%;
+    height: 100%;
+    border-collapse: collapse;
+    table-layout: fixed;
+    font-size: 6.2pt;
+    line-height: 1.25;
+  }
+  .seal-table th, .seal-table td {
+    border: 0.2mm solid #000;
+    padding: 0.4mm 0.8mm;
+    text-align: left;
+    vertical-align: middle;
+    word-break: break-all;
+  }
+  .seal-table th {
+    width: 13mm;
+    font-weight: 600;
+    white-space: nowrap;
+  }
+  /* 名称・原材料名は上基準 */
+  .seal-table .r-name th, .seal-table .r-name td { vertical-align: top; }
+  .seal-table .r-ing { height: 100%; }            /* 原材料名のマスが余白を吸収して伸びる */
+  .seal-table .r-ing td { vertical-align: top; }  /* 内容は上寄せ */
+  .seal-table .r-ing th { vertical-align: top; }    /* 「原材料名」ラベルも上寄せ */
+
+  /* 設定画面 */
+  .sm-list { display: flex; flex-direction: column; gap: 6px; margin-bottom: 12px; }
+  .sm-row { display: flex; align-items: center; gap: 8px; border: 1px solid var(--line); border-radius: 8px; padding: 7px 10px; }
+  .sm-row input { flex: 1; font-family: inherit; font-size: 14px; padding: 6px 8px; border: 1px solid var(--line); border-radius: 6px; }
+  .sm-order { display: flex; flex-direction: column; gap: 1px; }
+  .sm-order button { width: 24px; height: 16px; border: 1px solid var(--line); background: #fff; cursor: pointer; font-size: 10px; line-height: 1; padding: 0; border-radius: 4px; }
+  .settings-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+  @media (max-width: 900px) { .settings-grid { grid-template-columns: 1fr; } }
+  .form-row { margin-bottom: 12px; }
+  .form-row label { display: block; font-size: 13px; font-weight: 600; margin-bottom: 5px; }
+  .form-row input { width: 100%; font-family: inherit; font-size: 14px; padding: 8px 10px; border: 1px solid var(--line); border-radius: 8px; }
+  .hint { font-size: 12px; color: var(--muted); line-height: 1.6; }
+
+  /* モーダル */
+  .modal { display: none; position: fixed; inset: 0; background: rgba(0,0,0,.4); z-index: 100; align-items: flex-start; justify-content: center; padding: 30px 16px; overflow-y: auto; }
+  .modal.open { display: flex; }
+  .modal-box { background: #fff; border-radius: 14px; padding: 22px; width: 100%; max-width: 520px; }
+  .modal-box h2 { margin: 0 0 16px; font-size: 17px; color: var(--accent-dark); }
+  .modal-box textarea { width: 100%; font-family: inherit; font-size: 14px; padding: 9px 11px; border: 1px solid var(--line); border-radius: 8px; resize: vertical; }
+  .modal-actions { display: flex; gap: 8px; justify-content: flex-end; margin-top: 18px; }
+  .tag-input-wrap { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; border: 1px solid var(--line); border-radius: 8px; padding: 6px; }
+  .tag-input-wrap input { border: none; outline: none; flex: 1; min-width: 100px; font-family: inherit; font-size: 14px; padding: 4px; }
+  .tag-pill { background: #f1eae0; color: var(--accent-dark); padding: 3px 8px 3px 10px; border-radius: 999px; font-size: 12px; display: inline-flex; align-items: center; gap: 4px; }
+  .tag-pill button { border: none; background: none; cursor: pointer; color: var(--accent-dark); font-size: 14px; line-height: 1; padding: 0; }
+
+  @media print {
+    @page { size: A4; margin: 0; }
+    #app { display: none !important; }
+    #paper-print-area { display: block !important; transform: none !important; }
+    .print-page + .print-page { margin-top: 0; }
+    .print-page { page-break-after: always; }
+    .print-page:last-child { page-break-after: auto; }
+  }
+  #paper-print-area { display: none; }
+</style>
+</head>
+<body>
+<div id="app">
+  <header>
+    <h1>🥖 原材料シール印刷</h1>
+    <nav>
+      <button data-screen="products" class="active" onclick="switchScreen('products')">商品一覧</button>
+      <button data-screen="layout" onclick="switchScreen('layout')">レイアウト・印刷</button>
+      <button data-screen="settings" onclick="switchScreen('settings')">設定</button>
+    </nav>
+  </header>
+  <main>
+    <!-- 商品一覧画面 -->
+    <section id="screen-products" class="screen active">
+      <div class="toolbar">
+        <input type="text" id="search" class="grow" placeholder="商品名・原材料で検索" oninput="renderProducts()">
+        <select id="sort" onchange="takeSortSnapshot(); renderProducts()">
+          <option value="usage-desc">使用回数（多い順）</option>
+          <option value="usage-asc">使用回数（少ない順）</option>
+          <option value="name">五十音順</option>
+          <option value="created-desc">登録日（新しい順）</option>
+          <option value="created-asc">登録日（古い順）</option>
+        </select>
+        <button class="btn btn-primary" onclick="openProductModal()">＋ 商品を追加</button>
+      </div>
+      <div class="tag-filter" id="tagFilter"></div>
+      <div class="cart-bar" id="cartBarProducts"></div>
+      <div class="product-grid" id="productGrid"></div>
+    </section>
+
+    <!-- レイアウト画面 -->
+    <section id="screen-layout" class="screen">
+      <div class="cart-bar" id="cartBarLayout"></div>
+      <div class="layout-wrap">
+        <div>
+          <div class="panel">
+            <h2>印刷の共通設定</h2>
+            <div class="field">
+              <label>賞味期限</label>
+              <div class="radio-row" id="expiryRadios">
+                <label><input type="radio" name="expiry" value="today" onchange="onExpiryChange()"> 当日中</label>
+                <label><input type="radio" name="expiry" value="date" onchange="onExpiryChange()"> 日付指定</label>
+                <label><input type="radio" name="expiry" value="relative" onchange="onExpiryChange()"> 製造日＋N日</label>
+                <label><input type="radio" name="expiry" value="outside" onchange="onExpiryChange()"> 枠外に記載</label>
+              </div>
+              <div class="inline" style="margin-top:8px;">
+                <input type="date" id="expiryDate" style="display:none;" onchange="onExpiryChange()">
+                <span id="expiryRelWrap" style="display:none;">製造日＋ <input type="number" id="expiryDays" min="0" max="60" value="3" style="width:60px;" onchange="onExpiryChange()"> 日</span>
+                <span class="hint">プレビュー表示：<b id="expiryPreview"></b></span>
+              </div>
+            </div>
+            <div class="field">
+              <label>保存方法</label>
+              <select id="storageSelect" onchange="onStorageChange()"></select>
+            </div>
+            <div class="field">
+              <label>製造者</label>
+              <div class="inline">
+                <span id="makerDisplay" class="hint"></span>
+              </div>
+              <p class="hint" style="margin-top:4px;">変更は「設定」画面で行えます（全シール共通）。</p>
+            </div>
+            <div class="field">
+              <label>上から何枚スキップするか（使いかけの用紙用）</label>
+              <div class="inline">
+                <input type="number" id="skip" min="0" max="23" value="0" style="width:70px;" onchange="onSkipChange()">
+                <span class="hint">枚（0〜23）</span>
+              </div>
+            </div>
+            <div class="field">
+              <label>印刷位置の微調整（プリンタのズレ補正）</label>
+              <div class="inline">
+                <span style="width:24px;">横</span>
+                <input type="number" id="offsetX" step="0.1" value="0" style="width:80px;" onchange="onOffsetChange()">
+                <span class="hint">mm（＋で右 / −で左）</span>
+              </div>
+              <div class="inline" style="margin-top:6px;">
+                <span style="width:24px;">縦</span>
+                <input type="number" id="offsetY" step="0.1" value="0" style="width:80px;" onchange="onOffsetChange()">
+                <span class="hint">mm（＋で下 / −で上）</span>
+                <button class="btn btn-sm" onclick="resetOffset()">0に戻す</button>
+              </div>
+              <p class="hint" style="margin-top:6px;">印刷して用紙とズレたら、ここで微調整します。設定は自動保存されます。</p>
+            </div>
+          </div>
+        </div>
+        <div>
+          <div class="panel">
+            <div class="preview-info">
+              <span id="usageSummary"></span>
+              <div class="pager">
+                <button class="btn btn-sm" onclick="changePreviewPage(-1)">◀</button>
+                <span id="pageLabel">1 / 1</span>
+                <button class="btn btn-sm" onclick="changePreviewPage(1)">▶</button>
+              </div>
+            </div>
+            <div class="inline" style="margin-bottom:10px;">
+              <button class="btn btn-primary" onclick="doPrint()">🖨 印刷 / PDF保存</button>
+              <button class="btn btn-danger" onclick="resetLayout()">レイアウトをリセット</button>
+            </div>
+            <div class="preview-wrap">
+              <div class="preview-scaler" id="previewScaler">
+                <div id="screen-print-area"></div>
+              </div>
+            </div>
+            <p class="hint" style="margin-top:10px;">
+              💡 印刷時は、ブラウザの印刷画面で「用紙サイズ：A4」「余白：なし」「倍率：100%（拡大縮小しない）」「ヘッダーとフッター：オフ」に設定してください。「送信先」で「PDFに保存」を選ぶとPDFになります。
+            </p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- 設定画面 -->
+    <section id="screen-settings" class="screen">
+      <div class="settings-grid">
+        <div class="panel">
+          <h2>保存方法マスタ</h2>
+          <div class="sm-list" id="smList"></div>
+          <div class="inline">
+            <input type="text" id="newStorage" placeholder="新しい保存方法を入力" style="flex:1; font-family:inherit; font-size:14px; padding:8px 10px; border:1px solid var(--line); border-radius:8px;">
+            <button class="btn btn-primary btn-sm" onclick="addStorageMethod()">追加</button>
+          </div>
+        </div>
+        <div class="panel">
+          <h2>製造者情報</h2>
+          <div class="form-row">
+            <label>名称</label>
+            <input type="text" id="setMakerName" placeholder="例：〇〇ベーカリー">
+          </div>
+          <div class="form-row">
+            <label>住所</label>
+            <input type="text" id="setMakerAddr" placeholder="例：東京都〇〇区〇〇1-2-3">
+          </div>
+          <button class="btn btn-primary btn-sm" onclick="saveManufacturer()">製造者情報を保存</button>
+
+          <h2 style="margin-top:24px;">使用回数</h2>
+          <div class="inline" style="margin-top:8px;">
+            <button class="btn btn-sm" onclick="resetAllUsage()">🔄 使用回数をすべて0に戻す</button>
+          </div>
+
+          <h2 style="margin-top:24px;">データのバックアップ</h2>
+          <p class="hint">商品・保存方法・製造者のすべてのデータをファイルに保存／読み込みできます。</p>
+          <div class="inline" style="margin-top:8px;">
+            <button class="btn btn-sm" onclick="exportData()">⬇ エクスポート（保存）</button>
+            <button class="btn btn-sm" onclick="document.getElementById('importFile').click()">⬆ インポート（読み込み）</button>
+            <input type="file" id="importFile" accept="application/json,.json" style="display:none;" onchange="importData(event)">
+          </div>
+
+          <h2 style="margin-top:24px;">制作者</h2>
+          <div class="inline" style="margin-top:8px;">
+            <a class="btn btn-sm" href="https://x.com/kentamatsunaga" target="_blank" rel="noopener noreferrer" style="text-decoration:none;">𝕏 @kentamatsunaga</a>
+            <a class="btn btn-sm" href="https://www.youtube.com/channel/UCo72Faf-3PuugCbvphZgy-A" target="_blank" rel="noopener noreferrer" style="text-decoration:none;">▶ YouTube チャンネル</a>
+          </div>
+        </div>
+      </div>
+    </section>
+  </main>
+</div>
+
+<!-- 印刷専用エリア（画面では非表示・印刷時のみ表示） -->
+<div id="paper-print-area"></div>
+
+<!-- 商品登録・編集モーダル -->
+<div class="modal" id="productModal">
+  <div class="modal-box">
+    <h2 id="modalTitle">商品を追加</h2>
+    <div class="form-row">
+      <label>商品名 <span style="color:var(--danger)">*</span></label>
+      <input type="text" id="pName" placeholder="例：つぶあんぱん">
+    </div>
+    <div class="form-row">
+      <label>内容量（任意）</label>
+      <input type="text" id="pAmount" placeholder="例：1個 / 100g / 5枚入">
+    </div>
+    <div class="form-row">
+      <label>原材料 <span style="color:var(--danger)">*</span></label>
+      <textarea id="pIng" rows="4" placeholder="例：小麦粉、上白糖、塩、生イースト、全卵、植物性クリーム、豆乳バター、つぶあん、黒胡麻"></textarea>
+    </div>
+    <div class="form-row">
+      <label>タグ（任意）</label>
+      <div class="tag-input-wrap" id="tagInputWrap">
+        <input type="text" id="pTagInput" list="tagDatalist" placeholder="入力してEnterで追加" onkeydown="onTagKeydown(event)">
+        <datalist id="tagDatalist"></datalist>
+      </div>
+    </div>
+    <div class="modal-actions">
+      <button class="btn" onclick="closeProductModal()">キャンセル</button>
+      <button class="btn btn-primary" onclick="saveProduct()">保存</button>
+    </div>
+  </div>
+</div>
+
+<script>
+"use strict";
+
+// ===== 定数（仕様書の実測値）=====
+const COL_X = [19.76, 85.72, 151.69]; // 各列の文字x座標(mm)
+const ROW_Y0 = 13.05;                 // 行1の文字y座標(mm)
+const ROW_GAP = 33.87;                // 行の間隔(mm)
+const CELLS_PER_PAGE = 24;            // 3列 × 8行
+const PX_PER_MM = 96 / 25.4;
+// シール外形(枠)：文字座標から逆算（左余白6mm／列ピッチ65.97mm／一片66×33.9mm）
+const TEXT_ML = 13.76;                // シール枠の位置を文字座標から逆算するための距離(mm)
+const FRAME_TOP0 = 13.04;             // 1行目のシール枠の上端(mm)
+const SEAL_W = 66, SEAL_H = 33.9;     // 一片の外形(mm)
+
+const LS = {
+  products: 'bakeryLabels_products',
+  storage: 'bakeryLabels_storageMethods',
+  maker: 'bakeryLabels_manufacturer',
+  layout: 'bakeryLabels_layout',
+};
+
+// ===== 状態 =====
+let products = [];
+let storageMethods = [];
+let manufacturer = { name: '', address: '' };
+let layout = {
+  items: [],            // [{productId, count}]
+  skip: 0,
+  expiry: { type: 'today', date: '', days: 3 },
+  storageMethodId: null,
+  offsetX: 0,           // 印刷位置の微調整(mm)：＋で右、−で左
+  offsetY: 0,           // 印刷位置の微調整(mm)：＋で下、−で上
+};
+let activeTagFilters = [];
+let sortSnapshot = {};      // 並び替え用に固定した使用回数 {productId: count}
+let editingId = null;
+let editingTags = [];
+let previewPage = 0;
+
+// ===== ユーティリティ =====
+function esc(s) {
+  return String(s == null ? '' : s).replace(/[&<>"']/g, c => (
+    { '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' }[c]
+  ));
+}
+function uid(prefix) { return prefix + Date.now().toString(36) + Math.random().toString(36).slice(2, 6); }
+function nowISO() { return new Date().toISOString(); }
+function pad2(n) { return String(n).padStart(2, '0'); }
+function fmtDate(d) {
+  const dt = (d instanceof Date) ? d : new Date(d);
+  return dt.getFullYear() + '.' + pad2(dt.getMonth() + 1) + '.' + pad2(dt.getDate());
+}
+
+// ===== 保存・読み込み =====
+function save() {
+  localStorage.setItem(LS.products, JSON.stringify(products));
+  localStorage.setItem(LS.storage, JSON.stringify(storageMethods));
+  localStorage.setItem(LS.maker, JSON.stringify(manufacturer));
+  localStorage.setItem(LS.layout, JSON.stringify(layout));
+}
+function load() {
+  try {
+    const p = localStorage.getItem(LS.products);
+    const s = localStorage.getItem(LS.storage);
+    const m = localStorage.getItem(LS.maker);
+    const l = localStorage.getItem(LS.layout);
+    if (p) products = JSON.parse(p);
+    if (s) storageMethods = JSON.parse(s);
+    if (m) manufacturer = JSON.parse(m);
+    if (l) layout = Object.assign(layout, JSON.parse(l));
+  } catch (e) { console.warn('読み込みエラー', e); }
+
+  if (!storageMethods.length) {
+    storageMethods = [
+      { id: uid('s'), label: '【要冷凍】-18℃で保存してください。' },
+      { id: uid('s'), label: '要冷蔵10℃以下で保存してください。' },
+      { id: uid('s'), label: '直射日光・高温多湿を避け常温で保存してください。' },
+    ];
+  }
+  if (!localStorage.getItem(LS.products)) {
+    // 初回のみサンプル商品を投入
+    products = [
+      mkProduct('（例）あんぱん', '小麦粉、砂糖、塩、パン酵母、卵、バター、つぶあん', []),
+    ];
+  }
+  if (!layout.storageMethodId && storageMethods.length) {
+    layout.storageMethodId = storageMethods[0].id;
+  }
+  delete layout.makerOverride; // 旧バージョンの不要データを掃除（製造者は設定に一元化）
+}
+function mkProduct(name, ingredients, tags, amount) {
+  return { id: uid('p'), name, ingredients, amount: amount || '', tags: tags || [], pinned: false, usageCount: 0, createdAt: nowISO(), updatedAt: nowISO() };
+}
+
+// ===== 画面切り替え =====
+function switchScreen(name) {
+  document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+  document.getElementById('screen-' + name).classList.add('active');
+  document.querySelectorAll('nav button').forEach(b => b.classList.toggle('active', b.dataset.screen === name));
+  if (name === 'layout') { renderLayoutScreen(); }
+  if (name === 'settings') { renderSettings(); }
+  if (name === 'products') { takeSortSnapshot(); renderProducts(); renderCart(); }
+}
+
+// ===== 商品一覧 =====
+function getAllTags() {
+  const set = new Set();
+  products.forEach(p => (p.tags || []).forEach(t => set.add(t)));
+  return [...set].sort((a, b) => a.localeCompare(b, 'ja'));
+}
+function renderTagFilter() {
+  const wrap = document.getElementById('tagFilter');
+  const tags = getAllTags();
+  wrap.innerHTML = tags.map(t =>
+    `<span class="tag-chip ${activeTagFilters.includes(t) ? 'on' : ''}" onclick="toggleTagFilter('${esc(t)}')">#${esc(t)}</span>`
+  ).join('');
+}
+function toggleTagFilter(t) {
+  const i = activeTagFilters.indexOf(t);
+  if (i >= 0) activeTagFilters.splice(i, 1); else activeTagFilters.push(t);
+  renderProducts();
+}
+function takeSortSnapshot() {
+  // 並び替え用の使用回数を、この時点の値で固定する（選択中に順位が動かないように）
+  sortSnapshot = {};
+  products.forEach(p => { sortSnapshot[p.id] = p.usageCount || 0; });
+}
+function filteredSortedProducts() {
+  const q = (document.getElementById('search').value || '').trim().toLowerCase();
+  const sort = document.getElementById('sort').value;
+  let list = products.filter(p => {
+    const matchText = !q || p.name.toLowerCase().includes(q) || (p.ingredients || '').toLowerCase().includes(q);
+    const matchTags = !activeTagFilters.length || activeTagFilters.every(t => (p.tags || []).includes(t));
+    return matchText && matchTags;
+  });
+  // 使用回数の並び替えはスナップショット値で固定（リアルタイムだと追加のたびに順位が動くため）
+  const su = (p) => (sortSnapshot[p.id] !== undefined ? sortSnapshot[p.id] : (p.usageCount || 0));
+  const cmp = {
+    'usage-desc': (a, b) => su(b) - su(a),
+    'usage-asc': (a, b) => su(a) - su(b),
+    'name': (a, b) => a.name.localeCompare(b.name, 'ja'),
+    'created-desc': (a, b) => (b.createdAt || '').localeCompare(a.createdAt || ''),
+    'created-asc': (a, b) => (a.createdAt || '').localeCompare(b.createdAt || ''),
+  }[sort] || (() => 0);
+  // ピン留めを最上部に
+  list.sort((a, b) => {
+    if (!!a.pinned !== !!b.pinned) return a.pinned ? -1 : 1;
+    return cmp(a, b);
+  });
+  return list;
+}
+function renderProducts() {
+  renderTagFilter();
+  const grid = document.getElementById('productGrid');
+  const list = filteredSortedProducts();
+  if (!list.length) {
+    grid.innerHTML = `<div class="empty-msg">該当する商品がありません。「＋ 商品を追加」から登録してください。</div>`;
+    return;
+  }
+  grid.innerHTML = list.map(p => {
+    const item = layout.items.find(it => it.productId === p.id);
+    const count = item ? item.count : 0;
+    return `
+    <div class="product-card ${p.pinned ? 'pinned' : ''}">
+      <div class="pc-head">
+        <div class="pc-name">${esc(p.name)}</div>
+        <button class="pin-btn ${p.pinned ? 'on' : ''}" title="ピン留め" onclick="togglePin('${p.id}')">${p.pinned ? '★' : '☆'}</button>
+      </div>
+      <div class="pc-ing">${esc(p.ingredients)}</div>
+      ${(p.tags && p.tags.length) ? `<div class="pc-tags">${p.tags.map(t => `<span class="pc-tag">#${esc(t)}</span>`).join('')}</div>` : ''}
+      <div class="pc-foot">
+        <span class="pc-usage">使用 ${p.usageCount || 0} 回${(p.usageCount || 0) > 0 ? ` <button class="usage-reset" title="この商品の使用回数を0に戻す" onclick="resetUsage('${p.id}')">↺</button>` : ''}</span>
+        <button class="btn btn-sm" onclick="openProductModal('${p.id}')">編集</button>
+        <button class="btn btn-sm" onclick="duplicateProduct('${p.id}')">複製</button>
+        <button class="btn btn-sm btn-danger" onclick="deleteProduct('${p.id}')">削除</button>
+      </div>
+      <button class="pc-add-btn ${count > 0 ? 'has' : ''}" onclick="incLayout('${p.id}')">＋ 印刷に追加${count > 0 ? `（選択中 ${count}）` : ''}</button>
+    </div>`;
+  }).join('');
+}
+function togglePin(id) {
+  const p = products.find(x => x.id === id);
+  if (p) { p.pinned = !p.pinned; p.updatedAt = nowISO(); save(); renderProducts(); }
+}
+function duplicateProduct(id) {
+  const p = products.find(x => x.id === id);
+  if (!p) return;
+  const copy = mkProduct(p.name + 'のコピー', p.ingredients, [...(p.tags || [])]);
+  products.push(copy);
+  save();
+  openProductModal(copy.id);
+  renderProducts();
+}
+function deleteProduct(id) {
+  const p = products.find(x => x.id === id);
+  if (!p) return;
+  if (!confirm(`「${p.name}」を削除しますか？この操作は取り消せません。`)) return;
+  products = products.filter(x => x.id !== id);
+  layout.items = layout.items.filter(it => it.productId !== id);
+  save();
+  renderProducts();
+}
+
+// ===== 商品モーダル =====
+function openProductModal(id) {
+  editingId = id || null;
+  const p = id ? products.find(x => x.id === id) : null;
+  document.getElementById('modalTitle').textContent = id ? '商品を編集' : '商品を追加';
+  document.getElementById('pName').value = p ? p.name : '';
+  document.getElementById('pIng').value = p ? p.ingredients : '';
+  document.getElementById('pAmount').value = p ? (p.amount || '') : '';
+  editingTags = p ? [...(p.tags || [])] : [];
+  document.getElementById('pTagInput').value = '';
+  renderTagDatalist();
+  renderEditingTags();
+  document.getElementById('productModal').classList.add('open');
+  setTimeout(() => document.getElementById('pName').focus(), 50);
+}
+function closeProductModal() {
+  document.getElementById('productModal').classList.remove('open');
+  editingId = null;
+}
+function renderTagDatalist() {
+  document.getElementById('tagDatalist').innerHTML = getAllTags().map(t => `<option value="${esc(t)}">`).join('');
+}
+function renderEditingTags() {
+  const wrap = document.getElementById('tagInputWrap');
+  // 既存のpillを消してから input の前に挿入
+  wrap.querySelectorAll('.tag-pill').forEach(e => e.remove());
+  const input = document.getElementById('pTagInput');
+  editingTags.forEach(t => {
+    const pill = document.createElement('span');
+    pill.className = 'tag-pill';
+    pill.innerHTML = `#${esc(t)} <button type="button" onclick="removeTag('${esc(t)}')">×</button>`;
+    wrap.insertBefore(pill, input);
+  });
+}
+function onTagKeydown(e) {
+  if (e.isComposing || e.keyCode === 229) return; // 日本語入力（IME）の変換確定Enterは無視
+  if (e.key === 'Enter' || e.key === ',') {
+    e.preventDefault();
+    const v = e.target.value.trim().replace(/,$/, '');
+    if (v && !editingTags.includes(v)) { editingTags.push(v); renderEditingTags(); }
+    e.target.value = '';
+  } else if (e.key === 'Backspace' && !e.target.value && editingTags.length) {
+    editingTags.pop(); renderEditingTags();
+  }
+}
+function removeTag(t) {
+  editingTags = editingTags.filter(x => x !== t);
+  renderEditingTags();
+}
+function saveProduct() {
+  const name = document.getElementById('pName').value.trim();
+  const ing = document.getElementById('pIng').value.trim();
+  const amount = document.getElementById('pAmount').value.trim();
+  // 入力中で未確定のタグも拾う
+  const pending = document.getElementById('pTagInput').value.trim();
+  if (pending && !editingTags.includes(pending)) editingTags.push(pending);
+  if (!name) { alert('商品名を入力してください。'); return; }
+  if (!ing) { alert('原材料を入力してください。'); return; }
+  if (editingId) {
+    const p = products.find(x => x.id === editingId);
+    p.name = name; p.ingredients = ing; p.amount = amount; p.tags = [...editingTags]; p.updatedAt = nowISO();
+  } else {
+    products.push({ id: uid('p'), name, ingredients: ing, amount, tags: [...editingTags], pinned: false, usageCount: 0, createdAt: nowISO(), updatedAt: nowISO() });
+  }
+  save();
+  closeProductModal();
+  renderProducts();
+}
+
+// ===== レイアウト画面 =====
+function renderLayoutScreen() {
+  // 賞味期限ラジオ
+  document.querySelectorAll('input[name="expiry"]').forEach(r => { r.checked = (r.value === layout.expiry.type); });
+  syncExpiryControls();
+  // 保存方法
+  const sel = document.getElementById('storageSelect');
+  sel.innerHTML = storageMethods.map(s => `<option value="${s.id}">${esc(s.label)}</option>`).join('');
+  if (layout.storageMethodId) sel.value = layout.storageMethodId;
+  // 製造者
+  renderMakerDisplay();
+  // スキップ
+  document.getElementById('skip').value = layout.skip;
+  // 印刷位置の微調整
+  document.getElementById('offsetX').value = layout.offsetX || 0;
+  document.getElementById('offsetY').value = layout.offsetY || 0;
+  // 選択中の商品
+  renderCart();
+  // プレビュー
+  buildPages();
+}
+// 選択中バー（商品一覧・レイアウト画面の両方に表示）
+function renderCart() {
+  const html = buildCartHTML();
+  ['cartBarProducts', 'cartBarLayout'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.innerHTML = html;
+  });
+}
+function buildCartHTML() {
+  const total = layout.items.reduce((s, it) => s + it.count, 0);
+  if (!total) {
+    return `<div class="cart-empty">🛒 まだ商品が選ばれていません。商品の「＋ 印刷に追加」ボタンで追加してください。</div>`;
+  }
+  const chips = layout.items.map(it => {
+    const p = products.find(x => x.id === it.productId);
+    if (!p) return '';
+    return `<span class="cart-chip">
+        <span class="cart-name">${esc(p.name)}</span>
+        <button onclick="decLayout('${p.id}')" title="1つ減らす">−</button>
+        <b>${it.count}</b>
+        <button onclick="incLayout('${p.id}')" title="1つ増やす">＋</button>
+        <button class="cart-x" onclick="removeLayoutItem('${p.id}')" title="この商品を外す">×</button>
+      </span>`;
+  }).join('');
+  return `<div class="cart-head">
+      <span>🛒 印刷に選択中（合計 ${total} 面）</span>
+      <button class="btn btn-sm" onclick="switchScreen('layout')">印刷画面へ ▶</button>
+      <button class="btn btn-sm btn-danger" onclick="resetLayout()">すべてクリア</button>
+    </div>
+    <div class="cart-chips">${chips}</div>`;
+}
+function removeLayoutItem(id) {
+  layout.items = layout.items.filter(it => it.productId !== id);
+  save();
+  refreshSelection();
+}
+// 選択が変わったら：カート・商品一覧・プレビューをまとめて更新
+function refreshSelection() {
+  renderCart();
+  if (document.getElementById('screen-products').classList.contains('active')) renderProducts();
+  buildPages();
+}
+function addToLayout(id) { incLayout(id); }
+function incLayout(id) {
+  let item = layout.items.find(it => it.productId === id);
+  if (!item) { item = { productId: id, count: 0 }; layout.items.push(item); }
+  item.count++;
+  const p = products.find(x => x.id === id);
+  if (p) { p.usageCount = (p.usageCount || 0) + 1; p.updatedAt = nowISO(); }
+  save();
+  refreshSelection();
+}
+function decLayout(id) {
+  const item = layout.items.find(it => it.productId === id);
+  if (!item) return;
+  item.count--;
+  if (item.count <= 0) layout.items = layout.items.filter(it => it.productId !== id);
+  save();
+  refreshSelection();
+}
+function setLayoutCount(id, val) {
+  let n = parseInt(val, 10); if (isNaN(n) || n < 0) n = 0;
+  let item = layout.items.find(it => it.productId === id);
+  if (n === 0) { layout.items = layout.items.filter(it => it.productId !== id); }
+  else if (item) { item.count = n; }
+  else { layout.items.push({ productId: id, count: n }); }
+  save();
+  refreshSelection();
+}
+function resetLayout() {
+  if (!layout.items.length && !layout.skip) return;
+  if (!confirm('選択中の商品とスキップ設定をすべてクリアします。よろしいですか？')) return;
+  layout.items = []; layout.skip = 0; previewPage = 0;
+  document.getElementById('skip').value = 0;
+  save();
+  refreshSelection();
+}
+function onSkipChange() {
+  let n = parseInt(document.getElementById('skip').value, 10);
+  if (isNaN(n) || n < 0) n = 0; if (n > 23) n = 23;
+  layout.skip = n;
+  document.getElementById('skip').value = n;
+  save();
+  buildPages();
+}
+function onOffsetChange() {
+  const x = parseFloat(document.getElementById('offsetX').value);
+  const y = parseFloat(document.getElementById('offsetY').value);
+  layout.offsetX = isNaN(x) ? 0 : x;
+  layout.offsetY = isNaN(y) ? 0 : y;
+  save();
+  buildPages();
+}
+function resetOffset() {
+  layout.offsetX = 0; layout.offsetY = 0;
+  document.getElementById('offsetX').value = 0;
+  document.getElementById('offsetY').value = 0;
+  save();
+  buildPages();
+}
+
+// --- 賞味期限 ---
+function onExpiryChange() {
+  const type = document.querySelector('input[name="expiry"]:checked').value;
+  layout.expiry.type = type;
+  layout.expiry.date = document.getElementById('expiryDate').value || layout.expiry.date;
+  const d = parseInt(document.getElementById('expiryDays').value, 10);
+  layout.expiry.days = isNaN(d) ? 0 : d;
+  syncExpiryControls();
+  save();
+  buildPages();
+}
+function syncExpiryControls() {
+  const type = layout.expiry.type;
+  document.querySelectorAll('#expiryRadios label').forEach(l => {
+    l.classList.toggle('sel', l.querySelector('input').value === type);
+  });
+  document.getElementById('expiryDate').style.display = (type === 'date') ? '' : 'none';
+  document.getElementById('expiryRelWrap').style.display = (type === 'relative') ? '' : 'none';
+  if (layout.expiry.date) document.getElementById('expiryDate').value = layout.expiry.date;
+  document.getElementById('expiryDays').value = layout.expiry.days;
+  document.getElementById('expiryPreview').textContent = expiryText();
+}
+function expiryText() {
+  const e = layout.expiry;
+  if (e.type === 'today') return '当日中';
+  if (e.type === 'outside') return '枠外に記載';
+  if (e.type === 'date') return e.date ? fmtDate(e.date) : '（日付未指定）';
+  if (e.type === 'relative') {
+    const d = new Date(); d.setDate(d.getDate() + (e.days || 0));
+    return fmtDate(d);
+  }
+  return '';
+}
+
+// --- 保存方法 ---
+function onStorageChange() {
+  layout.storageMethodId = document.getElementById('storageSelect').value;
+  save();
+  buildPages();
+}
+
+// --- 製造者 ---
+function currentMaker() { return manufacturer; }
+function renderMakerDisplay() {
+  const m = manufacturer;
+  const el = document.getElementById('makerDisplay');
+  if (!m.name && !m.address) {
+    el.innerHTML = '<span style="color:var(--danger)">未設定 — 「設定」画面でお店の名称・住所を登録してください</span>';
+  } else {
+    el.textContent = `${m.name} ／ ${m.address}`;
+  }
+}
+
+// ===== ページ生成（プレビュー兼印刷）=====
+function buildCells() {
+  // skip分のnull + 各商品をcount分展開
+  const cells = [];
+  for (let i = 0; i < layout.skip; i++) cells.push(null);
+  layout.items.forEach(it => {
+    const p = products.find(x => x.id === it.productId);
+    if (!p) return;
+    for (let i = 0; i < it.count; i++) cells.push(p);
+  });
+  return cells;
+}
+function sealInner(p) {
+  const storage = storageMethods.find(s => s.id === layout.storageMethodId);
+  const m = currentMaker();
+  return `<table class="seal-table">
+    <tr class="r-name"><th>名称</th><td>${esc(p.name)}</td></tr>
+    ${p.amount ? `<tr><th>内容量</th><td>${esc(p.amount)}</td></tr>` : ''}
+    <tr class="r-ing"><th>原材料名</th><td>${esc(p.ingredients)}</td></tr>
+    <tr><th>賞味期限</th><td>${esc(expiryText())}</td></tr>
+    <tr><th>保存方法</th><td>${esc(storage ? storage.label : '')}</td></tr>
+    <tr class="r-maker"><th>製造者</th><td>${esc(m.name)}<br>${esc(m.address)}</td></tr>
+  </table>`;
+}
+function buildPages() {
+  const cells = buildCells();
+  const totalPages = Math.max(1, Math.ceil(cells.length / CELLS_PER_PAGE));
+  if (previewPage >= totalPages) previewPage = totalPages - 1;
+  if (previewPage < 0) previewPage = 0;
+
+  let html = '';
+  for (let pg = 0; pg < totalPages; pg++) {
+    html += '<div class="print-page">';
+    for (let i = 0; i < CELLS_PER_PAGE; i++) {
+      const p = cells[pg * CELLS_PER_PAGE + i];
+      if (!p) continue;
+      const col = i % 3, row = Math.floor(i / 3);
+      const fx = COL_X[col] - TEXT_ML + (layout.offsetX || 0);     // 枠の左端＋全体オフセット
+      const fy = FRAME_TOP0 + ROW_GAP * row + (layout.offsetY || 0); // 枠の上端＋全体オフセット
+      html += `<div class="seal-box" style="left:${fx}mm; top:${fy}mm; width:${SEAL_W}mm; height:${SEAL_H}mm;">${sealInner(p)}</div>`;
+    }
+    html += '</div>';
+  }
+  document.getElementById('paper-print-area').innerHTML = html;
+
+  // 画面プレビューは選択中ページのみ
+  const screenArea = document.getElementById('screen-print-area');
+  const pages = [...document.getElementById('paper-print-area').children];
+  screenArea.innerHTML = pages[previewPage] ? pages[previewPage].outerHTML : '<div class="print-page"></div>';
+  scalePreview();
+
+  // 情報表示
+  const used = cells.filter(Boolean).length;
+  document.getElementById('usageSummary').textContent = `配置 ${used} 面（スキップ ${layout.skip} 面）`;
+  document.getElementById('pageLabel').textContent = `${previewPage + 1} / ${totalPages}`;
+}
+function scalePreview() {
+  const wrap = document.querySelector('.preview-wrap');
+  const scaler = document.getElementById('previewScaler');
+  const area = document.getElementById('screen-print-area');
+  const pageW = 210 * PX_PER_MM;
+  const scale = Math.max(0.05, Math.min(1, (wrap.clientWidth - 24) / pageW));
+  area.style.transform = `scale(${scale})`;
+  scaler.style.width = (area.scrollWidth * scale) + 'px';
+  scaler.style.height = (area.scrollHeight * scale) + 'px';
+}
+function changePreviewPage(d) {
+  previewPage += d;
+  buildPages();
+}
+
+// ===== 印刷 =====
+function doPrint() {
+  buildPages();
+  const used = buildCells().filter(Boolean).length;
+  if (!used) { alert('配置されたシールがありません。商品を追加してください。'); return; }
+  window.print();
+}
+
+// ===== 設定画面 =====
+function renderSettings() {
+  renderStorageList();
+  document.getElementById('setMakerName').value = manufacturer.name;
+  document.getElementById('setMakerAddr').value = manufacturer.address;
+}
+function renderStorageList() {
+  const list = document.getElementById('smList');
+  list.innerHTML = storageMethods.map((s, i) => `
+    <div class="sm-row">
+      <input type="text" value="${esc(s.label)}" onchange="updateStorage('${s.id}', this.value)">
+      <div class="sm-order">
+        <button onclick="moveStorage(${i}, -1)" ${i === 0 ? 'disabled' : ''}>▲</button>
+        <button onclick="moveStorage(${i}, 1)" ${i === storageMethods.length - 1 ? 'disabled' : ''}>▼</button>
+      </div>
+      <button class="btn btn-sm btn-danger" onclick="deleteStorage('${s.id}')">削除</button>
+    </div>`).join('');
+}
+function addStorageMethod() {
+  const inp = document.getElementById('newStorage');
+  const v = inp.value.trim();
+  if (!v) return;
+  storageMethods.push({ id: uid('s'), label: v });
+  inp.value = '';
+  save();
+  renderStorageList();
+}
+function updateStorage(id, val) {
+  const s = storageMethods.find(x => x.id === id);
+  if (s) { s.label = val.trim(); save(); }
+}
+function deleteStorage(id) {
+  if (storageMethods.length <= 1) { alert('保存方法は最低1つ必要です。'); return; }
+  if (!confirm('この保存方法を削除しますか？')) return;
+  storageMethods = storageMethods.filter(x => x.id !== id);
+  if (layout.storageMethodId === id) layout.storageMethodId = storageMethods[0].id;
+  save();
+  renderStorageList();
+}
+function moveStorage(i, dir) {
+  const j = i + dir;
+  if (j < 0 || j >= storageMethods.length) return;
+  [storageMethods[i], storageMethods[j]] = [storageMethods[j], storageMethods[i]];
+  save();
+  renderStorageList();
+}
+function saveManufacturer() {
+  manufacturer.name = document.getElementById('setMakerName').value.trim();
+  manufacturer.address = document.getElementById('setMakerAddr').value.trim();
+  save();
+  alert('製造者情報を保存しました。');
+}
+
+// ===== 使用回数リセット =====
+function resetAllUsage() {
+  if (!confirm('すべての商品の使用回数を0に戻します。よろしいですか？')) return;
+  products.forEach(p => { p.usageCount = 0; });
+  save();
+  renderProducts();
+}
+function resetUsage(id) {
+  const p = products.find(x => x.id === id);
+  if (!p) return;
+  p.usageCount = 0;
+  save();
+  renderProducts();
+}
+
+// ===== エクスポート / インポート =====
+function exportData() {
+  const data = {
+    version: '1.0',
+    exportedAt: new Date().toISOString(),
+    products, storageMethods, manufacturer,
+  };
+  const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = 'bakery-labels-' + fmtDate(new Date()).replace(/\./g, '') + '.json';
+  a.click();
+  URL.revokeObjectURL(url);
+}
+function importData(ev) {
+  const file = ev.target.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = () => {
+    try {
+      const data = JSON.parse(reader.result);
+      if (!data.products) { alert('このファイルには商品データが見つかりません。'); ev.target.value = ''; return; }
+      if (!confirm('現在のデータをすべて、選んだファイルの内容で上書きします。\n（今の商品・保存方法・製造者は消えます）\n\nよろしいですか？')) {
+        ev.target.value = '';
+        return; // ＝ インポートを中止（何もしない）。誤ってファイルを選んでもデータは消えない
+      }
+      products = data.products || [];
+      storageMethods = data.storageMethods || storageMethods;
+      manufacturer = data.manufacturer || manufacturer;
+      if (layout.storageMethodId && !storageMethods.some(s => s.id === layout.storageMethodId)) {
+        layout.storageMethodId = storageMethods[0] ? storageMethods[0].id : null;
+      }
+      save();
+      renderProducts(); renderSettings();
+      alert('インポートが完了しました。');
+    } catch (e) {
+      alert('ファイルの読み込みに失敗しました。正しいJSONファイルか確認してください。');
+    }
+    ev.target.value = '';
+  };
+  reader.readAsText(file);
+}
+
+// ===== 初期化 =====
+window.addEventListener('resize', () => {
+  if (document.getElementById('screen-layout').classList.contains('active')) scalePreview();
+});
+load();
+save();
+takeSortSnapshot();
+renderProducts();
+renderCart();
+// 商品編集モーダルは「保存」「キャンセル」でのみ閉じる（画面外クリックでは閉じない＝誤操作防止）
+</script>
+</body>
+</html>

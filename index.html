@@ -1,0 +1,198 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>baked records — kenta matsunaga / 松永健太</title>
+  <meta name="description" content="バンドマン兼パン屋の松永健太(kenta matsunaga)が、業務や生活で「あったら便利」をAIで形にする個人開発アプリのポートフォリオ。">
+  <style>
+    :root {
+      --bg: #1a1410;
+      --bg-card: #241c16;
+      --line: #3a2e25;
+      --text: #f2e9e1;
+      --text-dim: #b3a496;
+      --accent: #e8a05c;
+      --accent-soft: #c97d3a;
+      --radius: 14px;
+    }
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    html { scroll-behavior: smooth; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Hiragino Kaku Gothic ProN", "Hiragino Sans", "Yu Gothic", Meiryo, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      line-height: 1.8;
+      -webkit-font-smoothing: antialiased;
+    }
+    .wrap { max-width: 860px; margin: 0 auto; padding: 0 24px; }
+
+    /* Hero */
+    header {
+      padding: 90px 0 64px;
+      text-align: center;
+      border-bottom: 1px solid var(--line);
+    }
+    .brand {
+      display: inline-block;
+      font-size: 0.78rem;
+      letter-spacing: 0.32em;
+      text-transform: uppercase;
+      color: var(--accent);
+      border: 1px solid var(--accent-soft);
+      padding: 6px 16px;
+      border-radius: 999px;
+      margin-bottom: 28px;
+    }
+    .lead {
+      font-size: clamp(0.9rem, 2.2vw, 1.02rem);
+      color: var(--text-dim);
+      margin-bottom: 28px;
+      font-weight: 400;
+      letter-spacing: 0.02em;
+    }
+    .x-link {
+      display: inline-flex; align-items: center;
+      font-size: 1rem; letter-spacing: 0.04em;
+      color: var(--accent); text-decoration: none;
+      border: 1px solid var(--accent-soft);
+      padding: 10px 24px; border-radius: 999px;
+      transition: background .18s ease, color .18s ease;
+    }
+    .x-link:hover { background: var(--accent); color: var(--bg); }
+
+    /* Sections */
+    section { padding: 56px 0; border-bottom: 1px solid var(--line); }
+    .section-title {
+      font-size: 0.8rem;
+      letter-spacing: 0.2em;
+      text-transform: uppercase;
+      color: var(--accent);
+      margin-bottom: 24px;
+    }
+
+    .cards { display: grid; gap: 18px; }
+    @media (min-width: 620px) { .cards { grid-template-columns: 1fr 1fr; } }
+
+    .card {
+      display: block;
+      background: var(--bg-card);
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      padding: 24px;
+      text-decoration: none;
+      color: inherit;
+      transition: transform .18s ease, border-color .18s ease;
+    }
+    .card:hover { transform: translateY(-3px); border-color: var(--accent-soft); }
+    .card h3 { font-size: 1.18rem; margin-bottom: 8px; }
+    .card p { color: var(--text-dim); font-size: 0.95rem; }
+    .card .go {
+      display: inline-block; margin-top: 14px;
+      font-size: 0.85rem; color: var(--accent); letter-spacing: 0.05em;
+    }
+    .card.soon { opacity: 0.6; cursor: default; }
+    .card.soon:hover { transform: none; border-color: var(--line); }
+    .tag {
+      display: inline-block; font-size: 0.7rem; letter-spacing: 0.08em;
+      color: var(--text-dim); border: 1px solid var(--line);
+      padding: 2px 10px; border-radius: 999px; margin-bottom: 12px;
+    }
+
+    /* Links / footer */
+    .links { display: flex; gap: 14px; flex-wrap: wrap; }
+    .link-btn {
+      display: inline-flex; align-items: center; gap: 8px;
+      background: var(--bg-card);
+      border: 1px solid var(--line);
+      padding: 12px 22px; border-radius: 999px;
+      text-decoration: none; color: var(--text);
+      transition: border-color .18s ease;
+    }
+    .link-btn:hover { border-color: var(--accent-soft); }
+
+    footer { padding: 40px 0 60px; text-align: center; color: var(--text-dim); font-size: 0.85rem; }
+  </style>
+</head>
+<body>
+  <header>
+    <div class="wrap">
+      <span class="brand">baked records</span>
+      <p class="lead">AI を使って開発したアプリなどを公開しています</p>
+      <a class="x-link" href="https://x.com/kentamatsunaga" target="_blank" rel="noopener">@kentamatsunaga</a>
+    </div>
+  </header>
+
+  <main>
+    <section>
+      <div class="wrap">
+        <div class="section-title">Bakery / Food Business</div>
+        <div class="cards">
+          <a class="card" href="./label/">
+            <span class="tag">Bakery Tool</span>
+            <h3>原材料シール印刷アプリ</h3>
+            <p>パンの原材料表示シールをブラウザから印刷。A-one 28947 のラベル用紙に対応。</p>
+            <span class="go">開く →</span>
+          </a>
+          <a class="card" href="https://www.instagram.com/boulangeriebasse/" target="_blank" rel="noopener">
+            <span class="tag">Instagram</span>
+            <h3>Boulangerie BASSE</h3>
+            <p>Boulangerie BASSEのInstagram</p>
+            <span class="go">見る →</span>
+          </a>
+          <a class="card" href="https://www.youtube.com/@youtubebakery" target="_blank" rel="noopener">
+            <span class="tag">YouTube</span>
+            <h3>YouTubeパン工房</h3>
+            <p>パン屋さん目線のYouTubeチャンネルです。</p>
+            <span class="go">見る →</span>
+          </a>
+        </div>
+      </div>
+    </section>
+
+    <section>
+      <div class="wrap">
+        <div class="section-title">Music / Livehouse / event</div>
+        <div class="cards">
+          <a class="card" href="./livehouse-generator/">
+            <span class="tag">Music Tool</span>
+            <h3>ライブハウス概要ジェネレータ</h3>
+            <p>ライブの告知に使う「ライブハウス概要」をかんたんに生成するツール。</p>
+            <span class="go">開く →</span>
+          </a>
+          <a class="card" href="https://youtube.com/@timecafe089542" target="_blank" rel="noopener">
+            <span class="tag">YouTube</span>
+            <h3>銀幕一楼とTIMECAFE YouTubeチャンネル</h3>
+            <p>ベーシストとして活動しているバンドのチャンネル。</p>
+            <span class="go">見る →</span>
+          </a>
+          <a class="card" href="https://ginmakuichiro.bitfan.id" target="_blank" rel="noopener">
+            <span class="tag">Website</span>
+            <h3>銀幕一楼とTIMECAFE オフィシャルサイト</h3>
+            <p>ベーシストとして活動しているバンドの公式サイト。</p>
+            <span class="go">見る →</span>
+          </a>
+        </div>
+      </div>
+    </section>
+
+    <section style="border-bottom:none;">
+      <div class="wrap">
+        <div class="section-title">Other</div>
+        <div class="cards">
+          <div class="card soon">
+            <span class="tag">Coming soon</span>
+            <h3>準備中</h3>
+          </div>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <footer>
+    <div class="wrap">
+      &copy; 2026 baked records / kenta matsunaga
+    </div>
+  </footer>
+</body>
+</html>
