@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<title>スイッチングアクション（プロトタイプ）</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body { height: 100%; background: #000; overflow: hidden; }
+  #game {
+    display: block;
+    width: 100vw;
+    height: 100vh;
+    touch-action: none;     /* タッチでスクロールしないように */
+    image-rendering: auto;
+  }
+  /* 操作ヒント（PC確認用） */
+  #hint {
+    position: fixed; left: 8px; top: 8px;
+    color: #9fb; font: 12px/1.4 monospace; opacity: .7;
+    pointer-events: none; white-space: pre;
+  }
+  /* スマホ用タッチボタン */
+  .pad { position: fixed; bottom: 18px; display: flex; gap: 14px; z-index: 10; }
+  #padL { left: 18px; }
+  #padR { right: 18px; }
+  .pad button {
+    width: 64px; height: 64px; border-radius: 50%;
+    border: 2px solid rgba(255,255,255,.5);
+    background: rgba(255,255,255,.12); color: #fff;
+    font-size: 24px; line-height: 1; touch-action: none;
+    user-select: none; -webkit-user-select: none;
+    -webkit-tap-highlight-color: transparent;
+  }
+  #bShoot {
+    background: rgba(230,80,58,.35);
+    border-color: rgba(255,120,90,.8); font-size: 20px;
+  }
+  #bJump {
+    background: rgba(80,160,230,.35);
+    border-color: rgba(120,190,255,.8); font-size: 20px;
+  }
+</style>
+</head>
+<body>
+  <canvas id="game"></canvas>
+  <div id="hint">移動: ← →　ジャンプ: スペース / ↑　撃つ: Z　（スマホは下のボタン）</div>
+
+  <div class="pad" id="padL">
+    <button id="bLeft" aria-label="左へ移動">◀</button>
+    <button id="bRight" aria-label="右へ移動">▶</button>
+  </div>
+  <div class="pad" id="padR">
+    <button id="bJump" aria-label="ジャンプ">跳</button>
+    <button id="bShoot" aria-label="撃つ">撃</button>
+  </div>
+
+  <script src="game.js"></script>
+</body>
+</html>
