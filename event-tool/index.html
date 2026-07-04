@@ -277,11 +277,16 @@
                             <input type="checkbox" id="enableStaffEntry" class="w-4 h-4">
                             <span>スタッフ入り時間を設定</span>
                         </label>
-                        <div class="flex items-center gap-1 text-sm text-gray-700">
+                        <select id="staffEntryMode" class="text-sm border border-gray-300 rounded p-1 bg-white" disabled>
+                            <option value="relative">リハ開始から逆算</option>
+                            <option value="absolute">時刻で指定</option>
+                        </select>
+                        <div id="staffEntryRelWrap" class="flex items-center gap-1 text-sm text-gray-700">
                             <span>リハーサル開始の</span>
                             <input type="number" id="staffEntryBeforeMin" value="30" class="w-16 p-1 border rounded text-center bg-white text-sm" disabled>
                             <span>分前</span>
                         </div>
+                        <input type="time" id="staffEntryAbsTime" value="15:00" class="hidden text-sm border border-gray-300 rounded p-1 bg-white" disabled>
                     </div>
 
                     <div class="flex items-center gap-3 flex-wrap">
@@ -296,11 +301,16 @@
                             <input type="checkbox" id="enableTeardown" class="w-4 h-4">
                             <span>完全撤収時間を設定</span>
                         </label>
-                        <div class="flex items-center gap-1 text-sm text-gray-700">
+                        <select id="teardownMode" class="text-sm border border-gray-300 rounded p-1 bg-white" disabled>
+                            <option value="relative">本番終了から計算</option>
+                            <option value="absolute">時刻で指定</option>
+                        </select>
+                        <div id="teardownRelWrap" class="flex items-center gap-1 text-sm text-gray-700">
                             <span>本番終了後</span>
                             <input type="number" id="teardownAfterMin" value="60" class="w-16 p-1 border rounded text-center bg-white text-sm" disabled>
                             <span>分</span>
                         </div>
+                        <input type="time" id="teardownAbsTime" value="22:30" class="hidden text-sm border border-gray-300 rounded p-1 bg-white" disabled>
                     </div>
                 </div>
             </section>
@@ -326,8 +336,8 @@
                     </button>
                 </div>
                 <div id="tt-status" class="hidden mb-3 p-3 bg-gray-900 border border-gray-700 rounded-lg"></div>
-                <p class="text-xs text-gray-400 mb-2">※ このテキストエリアは直接編集できます。</p>
-                <textarea id="outputArea" class="w-full h-[480px] bg-gray-900 text-gray-100 p-4 rounded-lg font-mono text-sm leading-relaxed border border-gray-700 focus:border-indigo-500 outline-none resize-none" spellcheck="false"></textarea>
+                <p class="text-xs text-gray-400 mb-2">※ コピーして貼り付けた先で編集してください。</p>
+                <textarea id="outputArea" readonly class="w-full h-[480px] bg-gray-900 text-gray-100 p-4 rounded-lg font-mono text-sm leading-relaxed border border-gray-700 focus:border-indigo-500 outline-none resize-none" spellcheck="false"></textarea>
                 <div id="copyMessage" class="hidden mt-2 p-2 bg-green-600 text-white text-center text-sm rounded">クリップボードにコピーしました！</div>
             </section>
 
@@ -1304,10 +1314,11 @@
             bands.forEach(b => text += `${b.name}\n`);
             text += '\n';
 
-            // スタッフ入り時間
+            // スタッフ入り時間（相対=リハ開始の◯分前 / 絶対=時刻指定。絶対ならリハ無しでも表示）
             const staffEntryCfg = getStaffEntryConfig();
-            if (staffEntryCfg.enabled && rehaType !== 'noRehearsal' && rhEvents.length) {
-                const staffMin = rhEvents[0].start - staffEntryCfg.minutes;
+            const rhStartMin = (rehaType !== 'noRehearsal' && rhEvents.length) ? rhEvents[0].start : null;
+            const staffMin = resolveStaffEntryMin(staffEntryCfg, rhStartMin);
+            if (staffMin !== null) {
                 text += `【スタッフ入り】\n${minutesToTime(staffMin)}\n\n`;
             }
 
@@ -1331,12 +1342,13 @@
                 else text += `${minutesToTime(e.start)}-${minutesToTime(e.end)} ${e.label}\n`;
             });
             if (endMin !== null) text += `終演予定 ${minutesToTime(endMin)}\n`;
-            // 完全撤収
+            // 完全撤収（相対=本番終了後◯分 / 絶対=時刻指定）
             const teardownCfg = getTeardownConfig();
-            if (teardownCfg.enabled) {
-                const lastTt = ttEvents[ttEvents.length - 1];
-                const lastEnd = typeof lastTt?.end === 'number' ? lastTt.end : timeToMinutes(lastTt?.time || '0:00');
-                text += `完全撤収 ${minutesToTime(lastEnd + teardownCfg.minutes)}\n`;
+            const lastTt = ttEvents[ttEvents.length - 1];
+            const lastEndForTd = typeof lastTt?.end === 'number' ? lastTt.end : timeToMinutes(lastTt?.time || '0:00');
+            const tdMin = resolveTeardownMin(teardownCfg, lastEndForTd);
+            if (tdMin !== null) {
+                text += `完全撤収 ${minutesToTime(tdMin)}\n`;
             }
             text += '\n';
 
@@ -1349,12 +1361,15 @@
             const ttCautions = [];
             if (openMin >= startMin) ttWarnings.push('OPEN が START 以降になっています');
             if (rhEvents.length && rhEvents[0].start < 0) ttWarnings.push('リハ開始が前日にはみ出しています（時間が足りません）');
-            if (staffEntryCfg.enabled && rehaType !== 'noRehearsal' && rhEvents.length
-                && rhEvents[0].start - staffEntryCfg.minutes < 0) {
-                ttWarnings.push('スタッフ入りが前日にはみ出しています');
+            if (staffMin !== null && staffMin < 0) ttWarnings.push('スタッフ入りが前日にはみ出しています');
+            if (staffMin !== null && staffEntryCfg.mode === 'absolute' && rhStartMin !== null && staffMin > rhStartMin) {
+                ttWarnings.push('スタッフ入りがリハ開始より後になっています');
+            }
+            if (tdMin !== null && teardownCfg.mode === 'absolute' && endMin !== null && tdMin < endMin) {
+                ttWarnings.push('完全撤収が終演予定より前になっています');
             }
             if (endMin !== null && endMin >= 1440) ttCautions.push('終演が深夜0時を越えています');
-            renderTtStatus(endMin, ttWarnings, ttCautions);
+            renderTtStatus(ttWarnings, ttCautions);
 
             // 印刷シート用データを保持
             printSheetData = {
@@ -1369,16 +1384,13 @@
         } catch (e) { console.error(e); }
     }
 
-    // 終演予定・警告のステータスバー（出力テキストエリアの上）
-    function renderTtStatus(endMin, warnings, cautions) {
+    // タイムテーブル警告のステータスバー（出力テキストエリアの上。問題がある時だけ表示）
+    function renderTtStatus(warnings, cautions) {
         const el = document.getElementById('tt-status');
         if (!el) return;
         let html = '';
-        if (endMin !== null) {
-            html += `<div class="text-sm font-bold text-emerald-400">🕘 終演予定 ${minutesToTime(endMin)}</div>`;
-        }
-        (cautions || []).forEach(w => { html += `<div class="text-xs font-bold text-yellow-400 mt-1">⚠ ${escapeHtml(w)}</div>`; });
-        (warnings || []).forEach(w => { html += `<div class="text-xs font-bold text-red-400 mt-1">⚠ ${escapeHtml(w)}</div>`; });
+        (cautions || []).forEach(w => { html += `<div class="text-xs font-bold text-yellow-400 mt-1 first:mt-0">⚠ ${escapeHtml(w)}</div>`; });
+        (warnings || []).forEach(w => { html += `<div class="text-xs font-bold text-red-400 mt-1 first:mt-0">⚠ ${escapeHtml(w)}</div>`; });
         el.innerHTML = html;
         el.classList.toggle('hidden', !html);
     }
@@ -1423,9 +1435,9 @@
             rehaWrap.style.display = '';
             let rows = '';
             const staffEntry = getStaffEntryConfig();
-            if (staffEntry.enabled && d.rhEvents.length) {
-                const staffMin = d.rhEvents[0].start - staffEntry.minutes;
-                rows += `<tr style="background:#f0fdf4;"><td class="time-col">${minutesToTime(staffMin)}</td><td>スタッフ入り</td><td class="dur-col">-</td></tr>`;
+            const pStaffMin = resolveStaffEntryMin(staffEntry, d.rhEvents.length ? d.rhEvents[0].start : null);
+            if (pStaffMin !== null) {
+                rows += `<tr style="background:#f0fdf4;"><td class="time-col">${minutesToTime(pStaffMin)}</td><td>スタッフ入り</td><td class="dur-col">-</td></tr>`;
             }
             d.rhEvents.forEach(e => {
                 rows += `<tr><td class="time-col">${minutesToTime(e.start)}-${minutesToTime(e.end)}</td><td>${escapeHtml(e.label)}</td><td class="dur-col">${e.end - e.start}分</td></tr>`;
@@ -1481,9 +1493,10 @@
         if (teardown.enabled && d.ttEvents.length) {
             const lastTt = d.ttEvents[d.ttEvents.length - 1];
             const endMin = typeof lastTt.end === 'number' ? lastTt.end : timeToMinutes(lastTt.time);
-            const tdMin = endMin + teardown.minutes;
+            const tdMin = resolveTeardownMin(teardown, endMin);
             teardownWrap.style.display = '';
-            teardownWrap.innerHTML = `完全撤収：${minutesToTime(tdMin)}（本番終了後 ${teardown.minutes} 分）`;
+            const suffix = teardown.mode === 'absolute' ? '' : `（本番終了後 ${teardown.minutes} 分）`;
+            teardownWrap.innerHTML = `完全撤収：${minutesToTime(tdMin)}${suffix}`;
         } else {
             teardownWrap.style.display = 'none';
         }
@@ -1493,10 +1506,52 @@
         if (notesEl) notesEl.textContent = d.other || '';
     }
 
+    // 完全撤収・スタッフ入りの UI 連動（チェックで有効化、モードで相対/時刻入力を切替）
+    function updateTeardownModeUI() {
+        const enabled = !!document.getElementById('enableTeardown')?.checked;
+        const mode = document.getElementById('teardownMode')?.value || 'relative';
+        const sel = document.getElementById('teardownMode');
+        const rel = document.getElementById('teardownAfterMin');
+        const abs = document.getElementById('teardownAbsTime');
+        const relWrap = document.getElementById('teardownRelWrap');
+        if (sel) sel.disabled = !enabled;
+        if (rel) rel.disabled = !enabled;
+        if (abs) abs.disabled = !enabled;
+        if (relWrap) relWrap.classList.toggle('hidden', mode === 'absolute');
+        if (abs) abs.classList.toggle('hidden', mode !== 'absolute');
+    }
+    function updateStaffEntryModeUI() {
+        const enabled = !!document.getElementById('enableStaffEntry')?.checked;
+        const mode = document.getElementById('staffEntryMode')?.value || 'relative';
+        const sel = document.getElementById('staffEntryMode');
+        const rel = document.getElementById('staffEntryBeforeMin');
+        const abs = document.getElementById('staffEntryAbsTime');
+        const relWrap = document.getElementById('staffEntryRelWrap');
+        if (sel) sel.disabled = !enabled;
+        if (rel) rel.disabled = !enabled;
+        if (abs) abs.disabled = !enabled;
+        if (relWrap) relWrap.classList.toggle('hidden', mode === 'absolute');
+        if (abs) abs.classList.toggle('hidden', mode !== 'absolute');
+    }
+
     function getTeardownConfig() {
         const enabled = document.getElementById('enableTeardown')?.checked;
+        const mode = document.getElementById('teardownMode')?.value || 'relative';
         const minutes = parseInt(document.getElementById('teardownAfterMin')?.value) || 0;
-        return { enabled: !!enabled, minutes };
+        const absMin = timeToMinutes(document.getElementById('teardownAbsTime')?.value || '');
+        return { enabled: !!enabled, mode, minutes, absMin };
+    }
+    // 完全撤収の時刻を分で返す（相対=本番終了+N分 / 絶対=指定時刻）。無効なら null
+    function resolveTeardownMin(cfg, lastEndMin) {
+        if (!cfg.enabled) return null;
+        if (cfg.mode === 'absolute') return cfg.absMin;
+        return (typeof lastEndMin === 'number') ? lastEndMin + cfg.minutes : null;
+    }
+    // スタッフ入りの時刻を分で返す（相対=リハ開始-N分 / 絶対=指定時刻）。無効なら null
+    function resolveStaffEntryMin(cfg, rhStartMin) {
+        if (!cfg.enabled) return null;
+        if (cfg.mode === 'absolute') return cfg.absMin;
+        return (typeof rhStartMin === 'number') ? rhStartMin - cfg.minutes : null;
     }
     function getGreetingConfig() {
         const enabled = document.getElementById('enableGreeting')?.checked;
@@ -1504,8 +1559,10 @@
     }
     function getStaffEntryConfig() {
         const enabled = document.getElementById('enableStaffEntry')?.checked;
+        const mode = document.getElementById('staffEntryMode')?.value || 'relative';
         const minutes = parseInt(document.getElementById('staffEntryBeforeMin')?.value) || 30;
-        return { enabled: !!enabled, minutes };
+        const absMin = timeToMinutes(document.getElementById('staffEntryAbsTime')?.value || '');
+        return { enabled: !!enabled, mode, minutes, absMin };
     }
 
     function formatPrintDate(fd) {
@@ -1642,9 +1699,9 @@
             styleSectionHeader(rhHeader, 'FFD1FAE5'); // 緑系
 
             const staffEntry = getStaffEntryConfig();
-            if (staffEntry.enabled) {
-                const staffMin = d.rhEvents[0].start - staffEntry.minutes;
-                const rS = ws.addRow([minutesToTime(staffMin), 'スタッフ入り', '-']);
+            const xStaffMin = resolveStaffEntryMin(staffEntry, d.rhEvents[0].start);
+            if (xStaffMin !== null) {
+                const rS = ws.addRow([minutesToTime(xStaffMin), 'スタッフ入り', '-']);
                 styleDataRow(rS, 'FFF0FDF4', false);
             }
             d.rhEvents.forEach(e => {
@@ -1692,7 +1749,7 @@
         const teardown = getTeardownConfig();
         if (teardown.enabled && ttBands.length) {
             const lastBand = ttBands[ttBands.length - 1];
-            const tdMin = lastBand.end + teardown.minutes;
+            const tdMin = resolveTeardownMin(teardown, lastBand.end);
             const rTd = ws.addRow([minutesToTime(tdMin), '完全撤収', '-']);
             styleDataRow(rTd, 'FFEDE9FE', false);
             rTd.eachCell(cell => { cell.font = { bold: true, size: 11 }; });
@@ -1773,10 +1830,16 @@
         document.getElementById('defaultRehaTime').value = '30';
         // 追加設定
         const eTd = document.getElementById('enableTeardown'); if (eTd) eTd.checked = false;
-        const tMin = document.getElementById('teardownAfterMin'); if (tMin) { tMin.value = '30'; tMin.disabled = true; }
+        const tMin = document.getElementById('teardownAfterMin'); if (tMin) tMin.value = '30';
+        const tMode = document.getElementById('teardownMode'); if (tMode) tMode.value = 'relative';
+        const tAbs = document.getElementById('teardownAbsTime'); if (tAbs) tAbs.value = '22:30';
         const eGr = document.getElementById('enableGreeting'); if (eGr) eGr.checked = false;
         const eSe = document.getElementById('enableStaffEntry'); if (eSe) eSe.checked = false;
-        const seMin = document.getElementById('staffEntryBeforeMin'); if (seMin) { seMin.value = '30'; seMin.disabled = true; }
+        const seMin = document.getElementById('staffEntryBeforeMin'); if (seMin) seMin.value = '30';
+        const seMode = document.getElementById('staffEntryMode'); if (seMode) seMode.value = 'relative';
+        const seAbs = document.getElementById('staffEntryAbsTime'); if (seAbs) seAbs.value = '15:00';
+        updateTeardownModeUI();
+        updateStaffEntryModeUI();
         tickets = [{ name: '前売', price: 3000 }, { name: '当日', price: 3500 }];
         drinks = [{ name: '+1d', price: 600 }];
         playguides = [{ name: '', url: '' }];
@@ -1933,9 +1996,13 @@
                 defaultRehaTime: getVal('defaultRehaTime'),
                 enableTeardown: getChk('enableTeardown'),
                 teardownAfterMin: getVal('teardownAfterMin'),
+                teardownMode: getVal('teardownMode'),
+                teardownAbsTime: getVal('teardownAbsTime'),
                 enableGreeting: getChk('enableGreeting'),
                 enableStaffEntry: getChk('enableStaffEntry'),
                 staffEntryBeforeMin: getVal('staffEntryBeforeMin'),
+                staffEntryMode: getVal('staffEntryMode'),
+                staffEntryAbsTime: getVal('staffEntryAbsTime'),
                 tickets: tickets,
                 drinks: drinks,
                 playguides: playguides,
@@ -2041,26 +2108,18 @@
 
         // ---- 概要 ----
         const ov = state.overview || {};
-        ['eventDate','eventPlace','eventTitle','eventAddress','otherInfo','openTime','startTime','rehearsalType','intervalBeforeOpenMin','defaultPlayTime','defaultChangeoverTime','defaultRehaTime','teardownAfterMin','staffEntryBeforeMin'].forEach(k => {
+        ['eventDate','eventPlace','eventTitle','eventAddress','otherInfo','openTime','startTime','rehearsalType','intervalBeforeOpenMin','defaultPlayTime','defaultChangeoverTime','defaultRehaTime','teardownAfterMin','staffEntryBeforeMin','teardownMode','teardownAbsTime','staffEntryMode','staffEntryAbsTime'].forEach(k => {
             setValIfExists(k, ov[k]);
         });
         // チェックボックス復元
         const tdCb = document.getElementById('enableTeardown');
-        if (tdCb) {
-            tdCb.checked = !!ov.enableTeardown;
-            const tdMin = document.getElementById('teardownAfterMin');
-            if (tdMin) tdMin.disabled = !tdCb.checked;
-        }
+        if (tdCb) tdCb.checked = !!ov.enableTeardown;
         const grCb = document.getElementById('enableGreeting');
-        if (grCb) {
-            grCb.checked = !!ov.enableGreeting;
-        }
+        if (grCb) grCb.checked = !!ov.enableGreeting;
         const seCb = document.getElementById('enableStaffEntry');
-        if (seCb) {
-            seCb.checked = !!ov.enableStaffEntry;
-            const seMin = document.getElementById('staffEntryBeforeMin');
-            if (seMin) seMin.disabled = !seCb.checked;
-        }
+        if (seCb) seCb.checked = !!ov.enableStaffEntry;
+        updateTeardownModeUI();
+        updateStaffEntryModeUI();
         if (Array.isArray(ov.tickets) && ov.tickets.length) tickets = ov.tickets;
         if (Array.isArray(ov.drinks) && ov.drinks.length) drinks = ov.drinks;
         if (Array.isArray(ov.playguides) && ov.playguides.length) playguides = ov.playguides;
@@ -2725,11 +2784,10 @@
         const teardownCb = document.getElementById('enableTeardown');
         const teardownMin = document.getElementById('teardownAfterMin');
         if (teardownCb && teardownMin) {
-            teardownCb.addEventListener('change', () => {
-                teardownMin.disabled = !teardownCb.checked;
-                calculate();
-            });
+            teardownCb.addEventListener('change', () => { updateTeardownModeUI(); calculate(); });
             teardownMin.addEventListener('input', calculate);
+            document.getElementById('teardownMode').addEventListener('change', () => { updateTeardownModeUI(); calculate(); });
+            document.getElementById('teardownAbsTime').addEventListener('input', calculate);
         }
         const greetingCb = document.getElementById('enableGreeting');
         if (greetingCb) {
@@ -2740,11 +2798,10 @@
         const staffEntryCb = document.getElementById('enableStaffEntry');
         const staffEntryMin = document.getElementById('staffEntryBeforeMin');
         if (staffEntryCb && staffEntryMin) {
-            staffEntryCb.addEventListener('change', () => {
-                staffEntryMin.disabled = !staffEntryCb.checked;
-                calculate();
-            });
+            staffEntryCb.addEventListener('change', () => { updateStaffEntryModeUI(); calculate(); });
             staffEntryMin.addEventListener('input', calculate);
+            document.getElementById('staffEntryMode').addEventListener('change', () => { updateStaffEntryModeUI(); calculate(); });
+            document.getElementById('staffEntryAbsTime').addEventListener('input', calculate);
         }
 
         // 概要 → フライヤー自動同期（一度フライヤータブを開いた後のみ有効）
