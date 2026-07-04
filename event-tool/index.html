@@ -71,6 +71,14 @@
         .move-btn:hover:not(:disabled) { background: #eef2ff; color: #4f46e5; border-color: #a5b4fc; }
         .move-btn:disabled { opacity: 0.3; cursor: default; }
         .reha-order-row.reha-drop-target { border-color: #4f46e5; box-shadow: 0 -2px 0 0 #4f46e5; }
+
+        /* トップ出演者の転換欄（無効）: グレー地＋破線で「使われない」ことを見せる */
+        .band-change-disabled {
+            background: #f3f4f6 !important;
+            color: #9ca3af !important;
+            border-style: dashed !important;
+            cursor: not-allowed;
+        }
         .reha-order-row:active { cursor: grabbing; }
         .ticket-grid { display: grid; grid-template-columns: 2fr 1fr auto; gap: 0.5rem; align-items: center; margin-bottom: 0.5rem; }
         .playguide-grid { display: grid; grid-template-columns: 1fr 2fr auto; gap: 0.5rem; align-items: center; margin-bottom: 0.5rem; }
@@ -1072,7 +1080,9 @@
                 </div>
                 <div class="grid grid-cols-3 gap-2 sm:contents">
                     <div><label class="block sm:hidden text-xs text-gray-500 mb-1">演奏</label><input type="number" value="${b.play}" class="input-field py-1 text-center text-sm" oninput="updateBand(${i},'play',this.value)"></div>
-                    <div><label class="block sm:hidden text-xs text-gray-500 mb-1">転換</label><input type="number" value="${b.change}" class="input-field py-1 text-center text-sm" oninput="updateBand(${i},'change',this.value)" ${i === 0 ? 'disabled title="トップの出演者に転換はありません"' : ''}></div>
+                    <div><label class="block sm:hidden text-xs text-gray-500 mb-1">転換</label>${i === 0
+                        ? `<input type="text" value="－" class="input-field py-1 text-center text-sm band-change-disabled" disabled title="トップの出演者に転換はありません">`
+                        : `<input type="number" value="${b.change}" class="input-field py-1 text-center text-sm" oninput="updateBand(${i},'change',this.value)">`}</div>
                     <div><label class="block sm:hidden text-xs text-gray-500 mb-1">リハ</label><input type="number" value="${b.reha}" class="input-field py-1 text-center text-sm" oninput="updateBand(${i},'reha',this.value)"></div>
                 </div>
                 <div class="flex gap-0.5 justify-center">
