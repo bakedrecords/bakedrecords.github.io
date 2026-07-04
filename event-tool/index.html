@@ -64,7 +64,14 @@
         #flyer-preview.landscape { aspect-ratio: 5/4; width: 100%; max-width: 580px; }
 
         /* グリッド */
-        .band-grid { display: grid; grid-template-columns: 28px 2fr 1fr 1fr 1fr 28px; gap: 0.5rem; align-items: center; }
+        .band-grid { display: grid; grid-template-columns: 28px 2fr 1fr 1fr 1fr 52px 28px; gap: 0.5rem; align-items: center; }
+
+        /* 並べ替えボタン（出演順・リハ順共通） */
+        .move-btn { width: 22px; height: 22px; border: 1px solid #d1d5db; border-radius: 4px; background: white; color: #6b7280; font-size: 12px; line-height: 1; cursor: pointer; }
+        .move-btn:hover:not(:disabled) { background: #eef2ff; color: #4f46e5; border-color: #a5b4fc; }
+        .move-btn:disabled { opacity: 0.3; cursor: default; }
+        .reha-order-row.reha-drop-target { border-color: #4f46e5; box-shadow: 0 -2px 0 0 #4f46e5; }
+        .reha-order-row:active { cursor: grabbing; }
         .ticket-grid { display: grid; grid-template-columns: 2fr 1fr auto; gap: 0.5rem; align-items: center; margin-bottom: 0.5rem; }
         .playguide-grid { display: grid; grid-template-columns: 1fr 2fr auto; gap: 0.5rem; align-items: center; margin-bottom: 0.5rem; }
 
@@ -112,21 +119,10 @@
         <h1 class="text-lg font-bold text-gray-900 flex items-center gap-2">
             <span>🎸</span> イベント概要＆フライヤー作成ツール
         </h1>
-        <div class="flex items-center gap-2">
-            <button onclick="saveToJsonFile()" class="text-xs bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-1.5 px-3 rounded flex items-center gap-1">
-                <svg xmlns="http://www.w3.org/2000/svg" class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3 3m0 0l-3-3m3 3V4"/></svg>
-                保存
-            </button>
-            <label class="text-xs bg-gray-100 hover:bg-gray-200 text-gray-600 font-bold py-1.5 px-3 rounded flex items-center gap-1 border border-gray-300 cursor-pointer">
-                <svg xmlns="http://www.w3.org/2000/svg" class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"/></svg>
-                読み込み
-                <input type="file" accept=".json" class="hidden" onchange="loadFromJsonFile(event)">
-            </label>
-            <button onclick="resetAllData()" class="text-xs bg-gray-100 hover:bg-gray-200 text-gray-600 font-bold py-1.5 px-3 rounded flex items-center gap-1 border border-gray-300">
-                <svg xmlns="http://www.w3.org/2000/svg" class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
-                リセット
-            </button>
-        </div>
+        <button onclick="resetAllData()" class="text-xs bg-gray-100 hover:bg-gray-200 text-gray-600 font-bold py-1.5 px-3 rounded flex items-center gap-1 border border-gray-300">
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
+            リセット
+        </button>
     </header>
 
     <!-- タブナビ -->
@@ -231,6 +227,17 @@
                             <input type="number" id="intervalBeforeOpenMin" value="30" class="input-field">
                         </div>
                     </div>
+                    <!-- リハ順の手動並べ替え（リハ無し以外で表示） -->
+                    <div id="custom-reha-toggle-wrap" class="mt-3">
+                        <label class="flex items-center gap-2 text-sm text-gray-700">
+                            <input type="checkbox" id="enableCustomRehaOrder" class="w-4 h-4">
+                            <span>リハ順を設定する（ドラッグまたは↑↓で並べ替え）</span>
+                        </label>
+                        <div id="custom-reha-panel" class="mt-2 hidden">
+                            <div class="text-xs font-bold text-gray-600 mb-2">リハーサル順（上から順に実施）</div>
+                            <div id="custom-reha-list" class="space-y-1"></div>
+                        </div>
+                    </div>
                 </div>
                 <div>
                     <div class="bg-yellow-50 p-4 rounded-lg mb-4 border border-yellow-200">
@@ -256,7 +263,7 @@
                     </div>
                     <div class="band-grid band-grid-header text-xs font-bold text-gray-500 mb-2 px-2 hidden sm:grid">
                         <div class="text-center">#</div><div>出演者名</div>
-                        <div class="text-center">演奏(分)</div><div class="text-center">転換(分)</div><div class="text-center">リハ(分)</div><div></div>
+                        <div class="text-center">演奏(分)</div><div class="text-center">転換(分)</div><div class="text-center">リハ(分)</div><div class="text-center">順</div><div></div>
                     </div>
                     <div id="band-inputs-container" class="space-y-2"></div>
                 </div>
@@ -318,6 +325,7 @@
                         コピー
                     </button>
                 </div>
+                <div id="tt-status" class="hidden mb-3 p-3 bg-gray-900 border border-gray-700 rounded-lg"></div>
                 <p class="text-xs text-gray-400 mb-2">※ このテキストエリアは直接編集できます。</p>
                 <textarea id="outputArea" class="w-full h-[480px] bg-gray-900 text-gray-100 p-4 rounded-lg font-mono text-sm leading-relaxed border border-gray-700 focus:border-indigo-500 outline-none resize-none" spellcheck="false"></textarea>
                 <div id="copyMessage" class="hidden mt-2 p-2 bg-green-600 text-white text-center text-sm rounded">クリップボードにコピーしました！</div>
@@ -836,11 +844,16 @@
     let tickets = [{ name: '前売', price: 3000 }, { name: '当日', price: 3500 }];
     let drinks = [{ name: '+1d', price: 600 }];
     let playguides = [{ name: '', url: '' }];
+    // _uid: カスタムリハ順から出演者を一意に参照するためのID（保存対象外、セッション内のみ有効）
+    let bandUidCounter = 0;
+    function newBandUid() { return ++bandUidCounter; }
     let bands = [
-        { name: '出演者1', play: 30, change: 15, reha: 30 },
-        { name: '出演者2', play: 30, change: 15, reha: 30 },
-        { name: '出演者3', play: 30, change: 15, reha: 30 }
+        { _uid: newBandUid(), name: '出演者1', play: 30, change: 15, reha: 30 },
+        { _uid: newBandUid(), name: '出演者2', play: 30, change: 15, reha: 30 },
+        { _uid: newBandUid(), name: '出演者3', play: 30, change: 15, reha: 30 }
     ];
+    // カスタムリハ順: 時系列順（先頭＝最初にリハ）の _uid 配列。「リハ順を設定する」チェックON時に使用
+    let customRehaOrder = [];
 
     // ============================================================
     // フライヤー: データ
@@ -1052,6 +1065,10 @@
                     <div><label class="block sm:hidden text-xs text-gray-500 mb-1">転換</label><input type="number" value="${b.change}" class="input-field py-1 text-center text-sm" oninput="updateBand(${i},'change',this.value)"></div>
                     <div><label class="block sm:hidden text-xs text-gray-500 mb-1">リハ</label><input type="number" value="${b.reha}" class="input-field py-1 text-center text-sm" oninput="updateBand(${i},'reha',this.value)"></div>
                 </div>
+                <div class="flex gap-0.5 justify-center">
+                    <button class="move-btn" title="上へ" onclick="moveBand(${i},-1)" ${i === 0 ? 'disabled' : ''}>↑</button>
+                    <button class="move-btn" title="下へ" onclick="moveBand(${i},1)" ${i === bands.length - 1 ? 'disabled' : ''}>↓</button>
+                </div>
                 <button class="remove-btn" onclick="removeBand(${i})">✕</button>
             `;
             c.appendChild(el);
@@ -1075,14 +1092,119 @@
         const p = parseInt(document.getElementById('defaultPlayTime').value) || 30;
         const c = parseInt(document.getElementById('defaultChangeoverTime').value) || 15;
         const r = parseInt(document.getElementById('defaultRehaTime').value) || 30;
-        bands.push({ name: `出演者${bands.length+1}`, play: p, change: c, reha: r });
-        renderBands(); calculate();
+        const band = { _uid: newBandUid(), name: `出演者${bands.length+1}`, play: p, change: c, reha: r };
+        bands.push(band);
+        if (customRehaOrder.length) customRehaOrder.push(band._uid);
+        renderBands(); renderRehaOrder(); calculate();
     }
-    function removeBand(i) { bands.splice(i, 1); renderBands(); calculate(); }
+    function removeBand(i) {
+        const uid = bands[i] && bands[i]._uid;
+        bands.splice(i, 1);
+        customRehaOrder = customRehaOrder.filter(u => u !== uid);
+        renderBands(); renderRehaOrder(); calculate();
+    }
     function updateBand(i, f, v) {
         if (f === 'name') bands[i].name = v;
         else bands[i][f] = parseInt(v) || 0;
+        if (f === 'name' || f === 'reha') renderRehaOrder();
         calculate();
+    }
+    function moveBand(i, dir) {
+        const j = i + dir;
+        if (j < 0 || j >= bands.length) return;
+        [bands[i], bands[j]] = [bands[j], bands[i]];
+        renderBands(); calculate();
+    }
+
+    // ---- リハ順の手動並べ替え（「リハ順を設定する」チェックON時に使用） ----
+    // 順リハ/逆リハの各プリセットから「実際のリハ実施順（時系列）」を導出する
+    function deriveRehaOrderFromType(type) {
+        let order = [...bands];
+        if (type === 'prepRehearsal') order.reverse();
+        else if (type === 'normalRehearsal' && order.length > 0) order.push(order.shift());
+        return order.map(b => b._uid);
+    }
+    function isCustomRehaOn() {
+        const cb = document.getElementById('enableCustomRehaOrder');
+        const sel = document.getElementById('rehearsalType');
+        return !!(cb && cb.checked) && sel && sel.value !== 'noRehearsal';
+    }
+    function updateCustomRehaUI() {
+        const type = document.getElementById('rehearsalType').value;
+        const wrap = document.getElementById('custom-reha-toggle-wrap');
+        const panel = document.getElementById('custom-reha-panel');
+        if (wrap) wrap.classList.toggle('hidden', type === 'noRehearsal');
+        if (panel) panel.classList.toggle('hidden', !isCustomRehaOn());
+    }
+    function onRehearsalTypeChange() {
+        // 手動並べ替えONのままプリセットを変えたら、新しいプリセット順で作り直す
+        if (isCustomRehaOn()) {
+            customRehaOrder = deriveRehaOrderFromType(document.getElementById('rehearsalType').value);
+            renderRehaOrder();
+        }
+        updateCustomRehaUI();
+        calculate();
+    }
+    function onCustomRehaToggle() {
+        if (isCustomRehaOn()) {
+            customRehaOrder = deriveRehaOrderFromType(document.getElementById('rehearsalType').value);
+            renderRehaOrder();
+        }
+        updateCustomRehaUI();
+        calculate();
+    }
+    let rehaDragIndex = null;
+    function renderRehaOrder() {
+        const c = document.getElementById('custom-reha-list');
+        if (!c) return;
+        c.innerHTML = '';
+        const byUid = new Map(bands.map(b => [b._uid, b]));
+        customRehaOrder.forEach((uid, i) => {
+            const b = byUid.get(uid);
+            if (!b) return;
+            const el = document.createElement('div');
+            el.className = 'reha-order-row flex items-center gap-2 bg-white border border-gray-200 rounded px-2 py-1.5 cursor-grab';
+            el.draggable = true;
+            el.innerHTML = `
+                <span class="text-gray-300 select-none">⠿</span>
+                <span class="text-xs font-bold text-gray-400 w-4 text-center">${i+1}</span>
+                <span class="flex-1 text-sm truncate" style="min-width: 4em;">${escapeHtml(b.name || '(未設定)')}</span>
+                <span class="text-xs text-gray-400 whitespace-nowrap">${b.reha}分</span>
+                <button class="move-btn" title="上へ" onclick="moveRehaOrder(${i},-1)" ${i === 0 ? 'disabled' : ''}>↑</button>
+                <button class="move-btn" title="下へ" onclick="moveRehaOrder(${i},1)" ${i === customRehaOrder.length - 1 ? 'disabled' : ''}>↓</button>`;
+            el.addEventListener('dragstart', e => {
+                rehaDragIndex = i;
+                el.classList.add('opacity-50');
+                e.dataTransfer.effectAllowed = 'move';
+                try { e.dataTransfer.setData('text/plain', String(i)); } catch(_) {}
+            });
+            el.addEventListener('dragend', () => {
+                rehaDragIndex = null;
+                document.querySelectorAll('.reha-order-row').forEach(r => r.classList.remove('opacity-50', 'reha-drop-target'));
+            });
+            el.addEventListener('dragover', e => {
+                if (rehaDragIndex === null) return;
+                e.preventDefault();
+                e.dataTransfer.dropEffect = 'move';
+                document.querySelectorAll('.reha-order-row').forEach(r => r.classList.remove('reha-drop-target'));
+                if (i !== rehaDragIndex) el.classList.add('reha-drop-target');
+            });
+            el.addEventListener('drop', e => {
+                e.preventDefault();
+                if (rehaDragIndex === null || i === rehaDragIndex) return;
+                const moved = customRehaOrder.splice(rehaDragIndex, 1)[0];
+                customRehaOrder.splice(i, 0, moved);
+                rehaDragIndex = null;
+                renderRehaOrder(); calculate();
+            });
+            c.appendChild(el);
+        });
+    }
+    function moveRehaOrder(i, dir) {
+        const j = i + dir;
+        if (j < 0 || j >= customRehaOrder.length) return;
+        [customRehaOrder[i], customRehaOrder[j]] = [customRehaOrder[j], customRehaOrder[i]];
+        renderRehaOrder(); calculate();
     }
 
     function applyBatchSettings() {
@@ -1134,8 +1256,17 @@
             if (rehaType !== 'noRehearsal') {
                 let curRehaEnd = openMin - interval;
                 let order = [...bands];
-                if (rehaType === 'prepRehearsal') order.reverse();
-                else if (rehaType === 'normalRehearsal' && order.length > 0) order.push(order.shift());
+                let usedCustom = false;
+                if (isCustomRehaOn()) {
+                    const byUid = new Map(bands.map(b => [b._uid, b]));
+                    const custom = customRehaOrder.map(uid => byUid.get(uid)).filter(Boolean);
+                    // 復元失敗などで件数が合わない場合はプリセット順にフォールバック
+                    if (custom.length === bands.length) { order = custom; usedCustom = true; }
+                }
+                if (!usedCustom) {
+                    if (rehaType === 'prepRehearsal') order.reverse();
+                    else if (rehaType === 'normalRehearsal' && order.length > 0) order.push(order.shift());
+                }
                 for (let i = order.length - 1; i >= 0; i--) {
                     const b = order[i];
                     const s = curRehaEnd - b.reha;
@@ -1188,11 +1319,16 @@
                 text += '\n';
             }
 
+            // 終演予定 = 最後の出演者の演奏終了時刻（出演者がいない場合は非表示）
+            const lastTtEv = ttEvents[ttEvents.length - 1];
+            const endMin = (bands.length && typeof lastTtEv?.end === 'number') ? lastTtEv.end : null;
+
             text += '【TT】\n';
             ttEvents.forEach(e => {
                 if (e.label === 'OPEN' || e.label === 'START') text += `${e.time} ${e.label}\n`;
                 else text += `${minutesToTime(e.start)}-${minutesToTime(e.end)} ${e.label}\n`;
             });
+            if (endMin !== null) text += `終演予定 ${minutesToTime(endMin)}\n`;
             // 完全撤収
             const teardownCfg = getTeardownConfig();
             if (teardownCfg.enabled) {
@@ -1206,17 +1342,43 @@
 
             document.getElementById('outputArea').value = text;
 
+            // タイムテーブルの矛盾チェック（画面表示のみ。共有テキスト・PDFには入れない）
+            const ttWarnings = [];
+            const ttCautions = [];
+            if (openMin >= startMin) ttWarnings.push('OPEN が START 以降になっています');
+            if (rhEvents.length && rhEvents[0].start < 0) ttWarnings.push('リハ開始が前日にはみ出しています（時間が足りません）');
+            if (staffEntryCfg.enabled && rehaType !== 'noRehearsal' && rhEvents.length
+                && rhEvents[0].start - staffEntryCfg.minutes < 0) {
+                ttWarnings.push('スタッフ入りが前日にはみ出しています');
+            }
+            if (endMin !== null && endMin >= 1440) ttCautions.push('終演が深夜0時を越えています');
+            renderTtStatus(endMin, ttWarnings, ttCautions);
+
             // 印刷シート用データを保持
             printSheetData = {
                 formattedDate, title, place, other,
                 openStr, startStr, openMin, startMin,
-                rhEvents, ttEvents, rehaType, interval
+                rhEvents, ttEvents, rehaType, interval, endMin
             };
             // 印刷タブが表示中なら更新
             if (!document.getElementById('panel-print').classList.contains('hidden')) {
                 updatePrintSheet();
             }
         } catch (e) { console.error(e); }
+    }
+
+    // 終演予定・警告のステータスバー（出力テキストエリアの上）
+    function renderTtStatus(endMin, warnings, cautions) {
+        const el = document.getElementById('tt-status');
+        if (!el) return;
+        let html = '';
+        if (endMin !== null) {
+            html += `<div class="text-sm font-bold text-emerald-400">🕘 終演予定 ${minutesToTime(endMin)}</div>`;
+        }
+        (cautions || []).forEach(w => { html += `<div class="text-xs font-bold text-yellow-400 mt-1">⚠ ${escapeHtml(w)}</div>`; });
+        (warnings || []).forEach(w => { html += `<div class="text-xs font-bold text-red-400 mt-1">⚠ ${escapeHtml(w)}</div>`; });
+        el.innerHTML = html;
+        el.classList.toggle('hidden', !html);
     }
 
     // 印刷シート用のデータ（calculate() で更新）
@@ -1306,6 +1468,9 @@
                 }
             }
         });
+        if (typeof d.endMin === 'number') {
+            ttRows += `<tr style="font-weight:700; border-top: 2px solid #111;"><td class="time-col">${minutesToTime(d.endMin)}</td><td>終演予定</td><td class="dur-col">-</td></tr>`;
+        }
         ttTable.innerHTML = ttRows;
 
         // 9. 完全撤収時間
@@ -1613,11 +1778,13 @@
         drinks = [{ name: '+1d', price: 600 }];
         playguides = [{ name: '', url: '' }];
         bands = [
-            { name: '出演者1', play: 30, change: 15, reha: 30 },
-            { name: '出演者2', play: 30, change: 15, reha: 30 },
-            { name: '出演者3', play: 30, change: 15, reha: 30 }
+            { _uid: newBandUid(), name: '出演者1', play: 30, change: 15, reha: 30 },
+            { _uid: newBandUid(), name: '出演者2', play: 30, change: 15, reha: 30 },
+            { _uid: newBandUid(), name: '出演者3', play: 30, change: 15, reha: 30 }
         ];
-        renderTickets(); renderDrinks(); renderPlayguides(); renderBands(); calculate();
+        customRehaOrder = [];
+        const crResetCb = document.getElementById('enableCustomRehaOrder'); if (crResetCb) crResetCb.checked = false;
+        renderTickets(); renderDrinks(); renderPlayguides(); renderBands(); renderRehaOrder(); updateCustomRehaUI(); calculate();
         // フライヤー側もまとめてリセット
         performFlyerReset();
     }
@@ -1770,6 +1937,8 @@
                 drinks: drinks,
                 playguides: playguides,
                 bands: bands2Array(),
+                customRehaEnabled: getChk('enableCustomRehaOrder'),
+                rehaOrderIdx: rehaOrder2IdxArray(),
             },
             flyer: {
                 fTitle: getVal('f-title'),
@@ -1812,6 +1981,14 @@
     function bands2Array() {
         // overview.bands(出演者タイム) の収集
         return bands.map(b => ({ name: b.name, play: b.play, change: b.change, reha: b.reha }));
+    }
+
+    function rehaOrder2IdxArray() {
+        // カスタムリハ順は uid だと再読込で変わるため、bands 配列内の index で保存する。
+        // 注意: collectState 内ではフライヤー用ローカル変数がグローバル bands を隠すため、ここで計算する
+        return customRehaOrder
+            .map(uid => bands.findIndex(b => b._uid === uid))
+            .filter(i => i >= 0);
     }
 
     function saveStateToStorage() {
@@ -1858,10 +2035,6 @@
         let state;
         try { state = JSON.parse(raw); } catch(_) { return; }
         if (!state || state.version !== 1) return;
-        applyStateData(state);
-    }
-
-    function applyStateData(state) {
 
         // ---- 概要 ----
         const ov = state.overview || {};
@@ -1889,9 +2062,20 @@
         if (Array.isArray(ov.drinks) && ov.drinks.length) drinks = ov.drinks;
         if (Array.isArray(ov.playguides) && ov.playguides.length) playguides = ov.playguides;
         if (Array.isArray(ov.bands) && ov.bands.length) {
-            bands = ov.bands.map(b => ({ name: b.name || '', play: +b.play || 30, change: +b.change || 15, reha: +b.reha || 30 }));
+            bands = ov.bands.map(b => ({ _uid: newBandUid(), name: b.name || '', play: +b.play || 30, change: +b.change || 15, reha: +b.reha || 30 }));
         }
-        renderTickets(); renderDrinks(); renderPlayguides(); renderBands(); calculate();
+        // カスタムリハ順の復元（index → 新しい uid に変換）
+        if (Array.isArray(ov.rehaOrderIdx)) {
+            customRehaOrder = ov.rehaOrderIdx.map(i => bands[i] && bands[i]._uid).filter(Boolean);
+        }
+        const crCb = document.getElementById('enableCustomRehaOrder');
+        if (crCb) crCb.checked = !!ov.customRehaEnabled;
+        // 旧保存形式（rehearsalType='customRehearsal'）からの引き継ぎ
+        if (ov.rehearsalType === 'customRehearsal') {
+            document.getElementById('rehearsalType').value = 'normalRehearsal';
+            if (crCb) crCb.checked = true;
+        }
+        renderTickets(); renderDrinks(); renderPlayguides(); renderBands(); renderRehaOrder(); updateCustomRehaUI(); calculate();
 
         // ---- フライヤー ----
         const fl = state.flyer || {};
@@ -1971,46 +2155,6 @@
         flyerRenderBandInputs();
         renderFlyerTicketRows();
         flyerUpdatePreview();
-    }
-
-    // ============================================================
-    // JSON ファイル 保存 / 読み込み
-    // ============================================================
-    function saveToJsonFile() {
-        const state = collectState({ skipImages: false });
-        const json = JSON.stringify(state, null, 2);
-        const blob = new Blob([json], { type: 'application/json' });
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        const dateVal = (document.getElementById('eventDate')?.value || '').replace(/\//g, '-');
-        const titleVal = (document.getElementById('eventTitle')?.value || 'event').replace(/[\/\\:*?"<>|\s]/g, '_');
-        a.download = (dateVal ? dateVal + '_' : '') + titleVal + '.json';
-        a.href = url;
-        a.click();
-        URL.revokeObjectURL(url);
-    }
-
-    function loadFromJsonFile(event) {
-        const file = event.target.files[0];
-        if (!file) return;
-        const reader = new FileReader();
-        reader.onload = function(e) {
-            let state;
-            try { state = JSON.parse(e.target.result); } catch(_) {
-                alert('JSONファイルの読み込みに失敗しました。ファイルを確認してください。');
-                return;
-            }
-            if (!state || state.version !== 1) {
-                alert('このファイルはこのツール用のデータではないか、対応していない形式です。');
-                return;
-            }
-            // localStorageにも保存して同期
-            try { localStorage.setItem(STORAGE_KEY, JSON.stringify(state)); } catch(_) {}
-            applyStateData(state);
-            showSaveWarning('✅ ファイルから読み込みました');
-        };
-        reader.readAsText(file);
-        event.target.value = ''; // 同じファイルを再度選べるようにリセット
     }
 
     // ============================================================
@@ -2563,10 +2707,16 @@
     // ============================================================
     function setupListeners() {
         // 概要入力
-        ['eventDate','eventPlace','eventTitle','eventAddress','openTime','startTime','rehearsalType','intervalBeforeOpenMin','otherInfo'].forEach(id => {
+        ['eventDate','eventPlace','eventTitle','eventAddress','openTime','startTime','intervalBeforeOpenMin','otherInfo'].forEach(id => {
             const el = document.getElementById(id);
             if (el) el.addEventListener('input', calculate);
         });
+
+        // リハーサル順セレクト＋「リハ順を設定する」チェックボックス
+        const rehaTypeSel = document.getElementById('rehearsalType');
+        if (rehaTypeSel) rehaTypeSel.addEventListener('change', onRehearsalTypeChange);
+        const customRehaCb = document.getElementById('enableCustomRehaOrder');
+        if (customRehaCb) customRehaCb.addEventListener('change', onCustomRehaToggle);
 
         // 完全撤収・顔合わせのチェックボックス連動
         const teardownCb = document.getElementById('enableTeardown');
