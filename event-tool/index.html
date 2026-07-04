@@ -1062,7 +1062,7 @@
                 </div>
                 <div class="grid grid-cols-3 gap-2 sm:contents">
                     <div><label class="block sm:hidden text-xs text-gray-500 mb-1">演奏</label><input type="number" value="${b.play}" class="input-field py-1 text-center text-sm" oninput="updateBand(${i},'play',this.value)"></div>
-                    <div><label class="block sm:hidden text-xs text-gray-500 mb-1">転換</label><input type="number" value="${b.change}" class="input-field py-1 text-center text-sm" oninput="updateBand(${i},'change',this.value)"></div>
+                    <div><label class="block sm:hidden text-xs text-gray-500 mb-1">転換</label><input type="number" value="${b.change}" class="input-field py-1 text-center text-sm" oninput="updateBand(${i},'change',this.value)" ${i === 0 ? 'disabled title="トップの出演者に転換はありません"' : ''}></div>
                     <div><label class="block sm:hidden text-xs text-gray-500 mb-1">リハ</label><input type="number" value="${b.reha}" class="input-field py-1 text-center text-sm" oninput="updateBand(${i},'reha',this.value)"></div>
                 </div>
                 <div class="flex gap-0.5 justify-center">
@@ -1244,9 +1244,11 @@
                 { time: startStr, label: 'START' }
             ];
             bands.forEach((b, i) => {
+                // 転換時間＝「その出演者の出番前の転換」。先頭の出演者の転換は使わない
+                if (i > 0) curMin += b.change;
                 const s = curMin, e = s + b.play;
                 ttEvents.push({ start: s, end: e, label: b.name || `出演者${i+1}` });
-                curMin = e + (i < bands.length - 1 ? b.change : 0);
+                curMin = e;
             });
 
             const rehaType = document.getElementById('rehearsalType').value;
@@ -1460,9 +1462,9 @@
         const ttBands = d.ttEvents.filter(e => e.label !== 'OPEN' && e.label !== 'START');
         ttBands.forEach((e, i) => {
             ttRows += `<tr><td class="time-col">${minutesToTime(e.start)}-${minutesToTime(e.end)}</td><td>${escapeHtml(e.label)}</td><td class="dur-col">${e.end - e.start}分</td></tr>`;
-            // 最終バンド以外は転換行を挿入
+            // 最終バンド以外は転換行を挿入（転換時間は「次の出演者」の値）
             if (i < ttBands.length - 1) {
-                const changeMin = bands[i] ? bands[i].change : 0;
+                const changeMin = bands[i + 1] ? bands[i + 1].change : 0;
                 if (changeMin > 0) {
                     ttRows += `<tr style="color:#6b7280;"><td class="time-col">${minutesToTime(e.end)}-${minutesToTime(e.end + changeMin)}</td><td>転換</td><td class="dur-col">${changeMin}分</td></tr>`;
                 }
@@ -1677,7 +1679,8 @@
             const rB = ws.addRow([`${minutesToTime(e.start)}-${minutesToTime(e.end)}`, e.label, `${e.end - e.start}分`]);
             styleDataRow(rB, null, false);
             if (i < ttBands.length - 1) {
-                const changeMin = bands[i] ? bands[i].change : 0;
+                // 転換時間は「次の出演者」の値
+                const changeMin = bands[i + 1] ? bands[i + 1].change : 0;
                 if (changeMin > 0) {
                     const rC = ws.addRow([`${minutesToTime(e.end)}-${minutesToTime(e.end + changeMin)}`, '転換', `${changeMin}分`]);
                     styleDataRow(rC, 'FFF9FAFB', false);
