@@ -128,10 +128,19 @@
         <h1 class="text-lg font-bold text-gray-900 flex items-center gap-2">
             <span>🎸</span> イベント概要＆フライヤー作成ツール
         </h1>
+        <div class="flex items-center gap-2">
+        <button onclick="exportStateJSON()" title="入力内容をJSONファイルとして保存" class="text-xs bg-indigo-50 hover:bg-indigo-100 text-indigo-700 font-bold py-1.5 px-3 rounded flex items-center gap-1 border border-indigo-200">
+            💾 ファイルに保存
+        </button>
+        <button onclick="document.getElementById('importFileInput').click()" title="保存したJSONファイルを読み込む" class="text-xs bg-indigo-50 hover:bg-indigo-100 text-indigo-700 font-bold py-1.5 px-3 rounded flex items-center gap-1 border border-indigo-200">
+            📂 ファイルを開く
+        </button>
+        <input type="file" id="importFileInput" accept=".json,application/json" class="hidden" onchange="if(this.files[0]) { importStateJSON(this.files[0]); this.value=''; }">
         <button onclick="resetAllData()" class="text-xs bg-gray-100 hover:bg-gray-200 text-gray-600 font-bold py-1.5 px-3 rounded flex items-center gap-1 border border-gray-300">
             <svg xmlns="http://www.w3.org/2000/svg" class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
             リセット
         </button>
+        </div>
     </header>
 
     <!-- タブナビ -->
@@ -2130,6 +2139,46 @@
                 console.warn('localStorage 保存失敗', e2);
             }
         }
+    }
+
+    // ============================================================
+    // JSONファイルへの保存・読み込み
+    // ============================================================
+    function exportStateJSON() {
+        const state = collectState();
+        const title = (document.getElementById('eventTitle').value || 'イベント').trim()
+            .replace(/[\\/:*?"<>|]/g, '_') || 'イベント';
+        const blob = new Blob([JSON.stringify(state, null, 2)], { type: 'application/json' });
+        const a = document.createElement('a');
+        a.href = URL.createObjectURL(blob);
+        a.download = `${title}_イベントデータ.json`;
+        a.click();
+        URL.revokeObjectURL(a.href);
+    }
+
+    function importStateJSON(file) {
+        const reader = new FileReader();
+        reader.onload = () => {
+            let state;
+            try { state = JSON.parse(reader.result); } catch (_) {
+                alert('ファイルの読み込みに失敗しました。JSONファイルではないようです。');
+                return;
+            }
+            if (!state || state.version !== 1 || !state.overview) {
+                alert('このファイルはイベントツールの保存データではないようです。');
+                return;
+            }
+            if (!confirm('今の入力内容を、読み込んだデータで置き換えます。よろしいですか？')) return;
+            try {
+                localStorage.setItem(STORAGE_KEY, reader.result);
+            } catch (e) {
+                alert('データが大きすぎて一時保存できませんでした（画像が大きい可能性があります）');
+                return;
+            }
+            // 復元処理は起動時ロードと共通化するためリロードで反映
+            location.reload();
+        };
+        reader.readAsText(file);
     }
 
     function showSaveWarning(msg) {
