@@ -410,6 +410,7 @@
                         <span class="text-indigo-400 font-normal text-[10px] ml-1">「概要から反映」で自動入力</span>
                     </h3>
                     <div class="space-y-2.5">
+                        <p class="text-[10px] text-gray-400">💡 タイトル・会場名・出演者名は「&lt;br&gt;」と入力した位置で改行できます</p>
                         <div>
                             <label class="text-xs font-semibold text-gray-600 block mb-1">イベントタイトル</label>
                             <input type="text" id="f-title" class="input-field" placeholder="タイトル">
@@ -2477,6 +2478,11 @@
         }
     }
 
+    // 入力テキスト中の <br> を改行として反映する（それ以外のHTMLタグは文字として無効化）
+    function brToHtml(raw) {
+        return String(raw || '').split(/<br\s*\/?>/i).map(escapeHtml).join('<br>');
+    }
+
     function flyerUpdateText() {
         const title = document.getElementById('f-title').value;
         const date = document.getElementById('f-date').value;
@@ -2485,12 +2491,12 @@
         const open = document.getElementById('f-open').value;
         const start = document.getElementById('f-start').value;
 
-        document.getElementById('f-out-title').textContent = title;
+        document.getElementById('f-out-title').innerHTML = brToHtml(title);
         document.getElementById('f-out-date').textContent = date;
-        document.getElementById('f-out-title-land').textContent = title;
+        document.getElementById('f-out-title-land').innerHTML = brToHtml(title);
         document.getElementById('f-out-date-land').textContent = date;
-        document.getElementById('f-out-venue').textContent = venue;
-        document.getElementById('f-out-address').textContent = address;
+        document.getElementById('f-out-venue').innerHTML = brToHtml(venue);
+        document.getElementById('f-out-address').innerHTML = brToHtml(address);
         document.getElementById('f-out-open').textContent = open;
         document.getElementById('f-out-start').textContent = start;
 
@@ -2647,9 +2653,10 @@
                 // <img> + object-fit: cover で元画像の解像度を保持しつつ、はみ出た部分を中心基準でトリミング
                 // ※ html2canvas v1.4.1 は object-fit を fill として描画してしまうバグあり。
                 //   保存時は downloadFlyer 側で各 img を Canvas 上で cover-crop し data URL に差し替えてから描画する
+                const plainName = displayName.replace(/<br\s*\/?>/ig, ' ');
                 const photoInner = band.image
-                    ? `<img src="${band.image}" alt="${displayName}" data-band-photo="1" crossorigin="anonymous" style="position:absolute;top:0;left:0;width:100%;height:100%;object-fit:cover;object-position:center center;display:block;">`
-                    : `<div class="absolute inset-0 flex items-center justify-center bg-gray-600 text-gray-300 font-bold text-sm px-1 text-center">${displayName}</div>`;
+                    ? `<img src="${band.image}" alt="${escapeHtml(plainName)}" data-band-photo="1" crossorigin="anonymous" style="position:absolute;top:0;left:0;width:100%;height:100%;object-fit:cover;object-position:center center;display:block;">`
+                    : `<div class="absolute inset-0 flex items-center justify-center bg-gray-600 text-gray-300 font-bold text-sm px-1 text-center">${brToHtml(displayName)}</div>`;
 
                 const item = document.createElement('div');
                 item.className = `flex flex-col items-center`;
@@ -2657,7 +2664,7 @@
                 item.style.maxWidth = itemBasis;
                 // バンド名が空欄の場合は名前テキストを非表示（アー写のみ表示）
                 const nameHtml = hasName
-                    ? `<div class="mt-1 font-bold leading-tight ${nameSize} break-words w-full px-1 text-center">${displayName}</div>`
+                    ? `<div class="mt-1 font-bold leading-tight ${nameSize} break-words w-full px-1 text-center">${brToHtml(displayName)}</div>`
                     : '';
                 item.innerHTML = `
                     <div class="w-full relative rounded-lg overflow-hidden shadow-lg border-2 border-white/20" style="padding-bottom:${paddingBottom}">
