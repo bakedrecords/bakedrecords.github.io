@@ -4,6 +4,14 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>イベント概要＆フライヤー作成ツール</title>
+    <meta name="description" content="ライブイベントの概要テキスト・タイムテーブル・印刷用PDF・フライヤー画像をブラウザだけで無料作成。登録不要、データは端末内に保存されます。">
+    <meta property="og:type" content="website">
+    <meta property="og:title" content="イベント概要＆フライヤー作成ツール">
+    <meta property="og:description" content="ライブの概要テキスト・タイムテーブル・印刷用PDF・フライヤー画像をブラウザだけで無料作成。登録不要。">
+    <meta property="og:url" content="https://bakedrecords.com/event-tool/">
+    <meta property="og:image" content="https://bakedrecords.com/event-tool/ogp.png">
+    <meta property="og:site_name" content="BAKED RECORDS">
+    <meta name="twitter:card" content="summary_large_image">
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -123,6 +131,11 @@
         </div>
     </div>
 
+    <!-- 入力履歴のオートコンプリート候補（localStorageから復元） -->
+    <datalist id="venue-history"></datalist>
+    <datalist id="title-history"></datalist>
+    <datalist id="band-name-history"></datalist>
+
     <!-- ヘッダー -->
     <header class="bg-white border-b border-gray-200 shadow-sm px-4 py-3 flex justify-between items-center sticky top-0 z-30">
         <h1 class="text-lg font-bold text-gray-900 flex items-center gap-2">
@@ -169,12 +182,12 @@
                         </div>
                         <div>
                             <label class="input-label">開催場所</label>
-                            <input type="text" id="eventPlace" class="input-field" placeholder="例: 渋谷LIVE">
+                            <input type="text" id="eventPlace" class="input-field" placeholder="例: 渋谷LIVE" list="venue-history">
                         </div>
                     </div>
                     <div>
                         <label class="input-label">イベントタイトル</label>
-                        <input type="text" id="eventTitle" class="input-field" placeholder="例: SPECIAL ROCK NIGHT">
+                        <input type="text" id="eventTitle" class="input-field" placeholder="例: SPECIAL ROCK NIGHT" list="title-history">
                     </div>
                     <div class="grid grid-cols-2 gap-4 bg-gray-50 p-3 rounded-lg border border-gray-100">
                         <div>
@@ -1113,7 +1126,7 @@
                 <div class="text-center font-bold text-gray-400 text-sm hidden sm:block">${i+1}</div>
                 <div>
                     <label class="block sm:hidden text-xs font-bold text-gray-500 mb-1">出演者 ${i+1}</label>
-                    <input type="text" value="${b.name}" placeholder="出演者名" class="input-field py-1" oninput="updateBand(${i},'name',this.value)">
+                    <input type="text" value="${b.name}" placeholder="出演者名" class="input-field py-1" list="band-name-history" oninput="updateBand(${i},'name',this.value)" onchange="addToHistory('bands', this.value)">
                 </div>
                 <div class="grid grid-cols-3 gap-2 sm:contents">
                     <div><label class="block sm:hidden text-xs text-gray-500 mb-1">演奏</label><input type="number" value="${b.play}" class="input-field py-1 text-center text-sm" oninput="updateBand(${i},'play',this.value)"></div>
@@ -2147,6 +2160,44 @@
     }
 
     // ============================================================
+    // 入力履歴（会場名・タイトル・出演者名）: localStorageに残して datalist で候補表示
+    // ============================================================
+    const HISTORY_KEY = 'eventToolHistory_v1';
+    let inputHistory = { venues: [], titles: [], bands: [] };
+
+    function loadInputHistory() {
+        try {
+            const h = JSON.parse(localStorage.getItem(HISTORY_KEY));
+            if (h) inputHistory = { venues: [], titles: [], bands: [], ...h };
+        } catch (_) {}
+        renderHistoryDatalists();
+    }
+
+    function addToHistory(kind, value) {
+        const v = String(value || '').trim();
+        if (!v || !inputHistory[kind]) return;
+        // 初期値のままの「出演者N」は履歴に入れない
+        if (kind === 'bands' && /^出演者\d+$/.test(v)) return;
+        const arr = inputHistory[kind];
+        const i = arr.indexOf(v);
+        if (i >= 0) arr.splice(i, 1);
+        arr.unshift(v);
+        if (arr.length > 30) arr.length = 30;
+        try { localStorage.setItem(HISTORY_KEY, JSON.stringify(inputHistory)); } catch (_) {}
+        renderHistoryDatalists();
+    }
+
+    function renderHistoryDatalists() {
+        const fill = (id, arr) => {
+            const dl = document.getElementById(id);
+            if (dl) dl.innerHTML = arr.map(v => `<option value="${escapeHtml(v)}"></option>`).join('');
+        };
+        fill('venue-history', inputHistory.venues);
+        fill('title-history', inputHistory.titles);
+        fill('band-name-history', inputHistory.bands);
+    }
+
+    // ============================================================
     // JSONファイルへの保存・読み込み
     // ============================================================
     function exportStateJSON() {
@@ -3038,6 +3089,12 @@
             if (el) el.addEventListener('input', calculate);
         });
 
+        // 会場名・タイトルの確定時（フォーカスが外れたとき）に入力履歴へ記録
+        const placeEl = document.getElementById('eventPlace');
+        if (placeEl) placeEl.addEventListener('change', () => addToHistory('venues', placeEl.value));
+        const titleEl = document.getElementById('eventTitle');
+        if (titleEl) titleEl.addEventListener('change', () => addToHistory('titles', titleEl.value));
+
         // リハーサル順セレクト＋「リハ順を設定する」チェックボックス
         const rehaTypeSel = document.getElementById('rehearsalType');
         if (rehaTypeSel) rehaTypeSel.addEventListener('change', onRehearsalTypeChange);
@@ -3228,6 +3285,8 @@
         calculate();
         flyerRenderBandInputs();
         setupListeners();
+        // 入力履歴（会場名・タイトル・出演者名の候補）を復元
+        loadInputHistory();
         // localStorage からの復元（リスナー登録後に実行）
         loadStateFromStorage();
     }
