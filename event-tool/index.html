@@ -2002,7 +2002,11 @@
     let saveTimer = null;
     let saveWarningShown = false;
 
+    // JSON読み込み中は自動保存を止める（読み込んだデータを古い状態で上書きしないため）
+    let suppressAutoSave = false;
+
     function scheduleSave() {
+        if (suppressAutoSave) return;
         if (saveTimer) clearTimeout(saveTimer);
         saveTimer = setTimeout(saveStateToStorage, 300);
     }
@@ -2123,6 +2127,7 @@
     }
 
     function saveStateToStorage() {
+        if (suppressAutoSave) return;
         try {
             const state = collectState();
             localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
@@ -2169,9 +2174,13 @@
                 return;
             }
             if (!confirm('今の入力内容を、読み込んだデータで置き換えます。よろしいですか？')) return;
+            // ファイル選択操作で予約された自動保存が、読み込んだデータを上書きしないように止める
+            suppressAutoSave = true;
+            if (saveTimer) { clearTimeout(saveTimer); saveTimer = null; }
             try {
                 localStorage.setItem(STORAGE_KEY, reader.result);
             } catch (e) {
+                suppressAutoSave = false;
                 alert('データが大きすぎて一時保存できませんでした（画像が大きい可能性があります）');
                 return;
             }
