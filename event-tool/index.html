@@ -883,19 +883,22 @@
             #panel-overview, #panel-flyer { display: none !important; }
             #panel-print { display: block !important; margin: 0 !important; padding: 0 !important; }
             #panel-print > div { max-width: none !important; margin: 0 !important; padding: 0 !important; }
+            /* 内容がA4を超える場合は2枚目以降へ自然に流す（切り捨てない） */
             #print-sheet {
                 box-shadow: none !important;
                 width: 210mm !important;
                 min-height: 0 !important;
                 height: auto !important;
-                max-height: 297mm !important;
                 margin: 0 !important;
                 padding: 10mm 14mm !important;
-                page-break-after: avoid !important;
-                page-break-inside: avoid !important;
-                overflow: hidden !important;
             }
-            #print-sheet * { page-break-inside: avoid !important; }
+            /* 表の行や囲みボックスなど「小さなまとまり」の途中では改ページしない */
+            #print-sheet tr,
+            #print-sheet #p-title,
+            #print-sheet #p-prep-wrap,
+            #print-sheet #p-teardown-wrap {
+                page-break-inside: avoid !important;
+            }
         }
         #print-sheet table th, #print-sheet table td {
             border: 1px solid #d1d5db; padding: 4px 6px; text-align: left;
