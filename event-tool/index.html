@@ -10,6 +10,7 @@
     <link href="https://fonts.googleapis.com/css2?family=Dela+Gothic+One&family=DotGothic16&family=Hachi+Maru+Pop&family=Kaisei+Opti:wght@700&family=Klee+One:wght@600&family=M+PLUS+Rounded+1c:wght@500;700&family=Mochiy+Pop+P+One&family=New+Tegomin&family=Noto+Sans+JP:wght@400;700;900&family=Noto+Serif+JP:wght@700&family=Rampart+One&family=Reggae+One&family=RocknRoll+One&family=Shippori+Mincho:wght@700&family=Stick&family=Train+One&family=Yomogi&family=Yusei+Magic&family=Zen+Kurenaido&family=Zen+Maru+Gothic:wght@500;700&display=swap" rel="stylesheet">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/html-to-image@1.11.13/dist/html-to-image.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/qrcode-generator@1.4.4/qrcode.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/exceljs@4.4.0/dist/exceljs.min.js"></script>
     <style>
         /* フォント */
@@ -448,6 +449,22 @@
                             <div id="f-drink-rows" class="space-y-1.5"></div>
                             <button onclick="addFlyerDrink()" class="mt-1 text-xs text-indigo-500 hover:text-indigo-700 font-bold">+ 追加</button>
                         </div>
+                        <!-- プレイガイドQRコード -->
+                        <div>
+                            <label class="flex items-center gap-2 text-xs font-semibold text-gray-600 mb-1 cursor-pointer">
+                                <input type="checkbox" id="f-qr-enabled" class="w-4 h-4">
+                                <span>プレイガイドURLのQRコードを表示</span>
+                            </label>
+                            <div id="f-qr-settings" class="hidden space-y-2 mt-1 pl-6">
+                                <select id="f-qr-source" class="input-field text-xs py-1"></select>
+                                <p id="f-qr-empty-note" class="hidden text-[11px] text-amber-600">概要タブの「プレイガイドURL」に名前とURLを入力してください</p>
+                                <div class="flex items-center gap-2">
+                                    <span class="text-xs text-gray-500 whitespace-nowrap">サイズ</span>
+                                    <input type="range" id="f-qr-size" min="40" max="140" value="72" class="flex-1 accent-indigo-600">
+                                    <span id="f-qr-size-val" class="text-[10px] text-gray-500 w-10 text-right">72px</span>
+                                </div>
+                            </div>
+                        </div>
                     </div>
                 </section>
 
@@ -739,6 +756,14 @@
                     </div>
 
                 </div>
+
+                <!-- プレイガイドQRコード（右下） -->
+                <div id="f-out-qr" class="absolute z-40 hidden" style="right: 3%; bottom: 3%;">
+                    <div class="bg-white rounded p-1 flex flex-col items-center" style="box-shadow: 0 1px 4px rgba(0,0,0,0.45);">
+                        <img id="f-out-qr-img" alt="QR" style="display:block; width:72px; height:72px; image-rendering: pixelated;">
+                        <div id="f-out-qr-label" class="text-black font-bold" style="font-size:8px; line-height:1.3; max-width:72px; overflow:hidden; white-space:nowrap; text-overflow:ellipsis;"></div>
+                    </div>
+                </div>
             </div>
         </div>
     </div>
@@ -974,6 +999,8 @@
         document.getElementById('f-band-count').value = count;
         bands.forEach((b, i) => { if (i < 9) flyerState.bands[i].name = b.name; });
         flyerRenderBandInputs();
+        // プレイガイドQRの選択肢を最新化
+        updateQrSourceOptions();
         flyerUpdatePreview();
     }
 
@@ -1881,6 +1908,14 @@
         document.getElementById('f-bg-color-setting').classList.add('hidden');
         document.getElementById('f-bg-gradient-setting').classList.add('hidden');
 
+        // プレイガイドQR
+        const qrCbReset = document.getElementById('f-qr-enabled');
+        if (qrCbReset) qrCbReset.checked = false;
+        const qrSettingsReset = document.getElementById('f-qr-settings');
+        if (qrSettingsReset) qrSettingsReset.classList.add('hidden');
+        const qrSizeReset = document.getElementById('f-qr-size');
+        if (qrSizeReset) qrSizeReset.value = '72';
+
         // セレクト
         document.getElementById('f-band-count').value = '3';
         document.getElementById('f-text-shadow').value = 'text-shadow-none';
@@ -2054,6 +2089,9 @@
                 bgImageSrc: bgImageSrc,
                 presetIndex: presetIdx,
                 saveFormat: getVal('saveFormat'),
+                qrEnabled: getChk('f-qr-enabled'),
+                qrUrl: getVal('f-qr-source'),
+                qrSize: getVal('f-qr-size'),
             }
         };
     }
@@ -2197,6 +2235,16 @@
         setValIfExists('f-bg-overlay', fl.bgOverlay);
         setValIfExists('saveFormat', fl.saveFormat);
 
+        // プレイガイドQR（選択肢は概要側の playguides 復元後に作る）
+        updateQrSourceOptions();
+        const qrCbRestore = document.getElementById('f-qr-enabled');
+        if (qrCbRestore) {
+            qrCbRestore.checked = !!fl.qrEnabled;
+            document.getElementById('f-qr-settings').classList.toggle('hidden', !qrCbRestore.checked);
+        }
+        setValIfExists('f-qr-source', fl.qrUrl);
+        setValIfExists('f-qr-size', fl.qrSize);
+
         // flyerState
         if (Array.isArray(fl.bands)) {
             for (let i = 0; i < 9; i++) {
@@ -2285,7 +2333,68 @@
         flyerUpdateDesign();
         flyerUpdateBackground();
         flyerUpdateArtists();
+        flyerUpdateQR();
         if (typeof scheduleSave === 'function') scheduleSave();
+    }
+
+    // ============================================================
+    // フライヤー: プレイガイドQRコード
+    // ============================================================
+    // 概要タブのプレイガイド一覧からQRの選択肢を作り直す（選択中URLは維持）
+    function updateQrSourceOptions() {
+        const sel = document.getElementById('f-qr-source');
+        if (!sel) return;
+        const prev = sel.value;
+        sel.innerHTML = '';
+        const valid = playguides.filter(p => p.name && p.url);
+        valid.forEach(p => {
+            const opt = document.createElement('option');
+            opt.value = p.url;
+            opt.textContent = p.name;
+            sel.appendChild(opt);
+        });
+        if (prev && valid.some(p => p.url === prev)) sel.value = prev;
+        const note = document.getElementById('f-qr-empty-note');
+        if (note) note.classList.toggle('hidden', valid.length > 0);
+        sel.classList.toggle('hidden', valid.length === 0);
+    }
+
+    const _qrDataURLCache = {};
+    function flyerUpdateQR() {
+        const wrap = document.getElementById('f-out-qr');
+        if (!wrap) return;
+        const enabled = document.getElementById('f-qr-enabled')?.checked;
+        const sel = document.getElementById('f-qr-source');
+        const url = sel ? sel.value : '';
+        const size = parseInt(document.getElementById('f-qr-size')?.value) || 72;
+        const sizeVal = document.getElementById('f-qr-size-val');
+        if (sizeVal) sizeVal.textContent = `${size}px`;
+        if (!enabled || !url || typeof qrcode !== 'function') {
+            wrap.classList.add('hidden');
+            return;
+        }
+        try {
+            if (!_qrDataURLCache[url]) {
+                // 型番0=自動、誤り訂正M。セルサイズ8pxで大きめに描き、表示はCSSで縮小（縮小はQRの読み取りに影響しない）
+                const qr = qrcode(0, 'M');
+                qr.addData(url);
+                qr.make();
+                _qrDataURLCache[url] = qr.createDataURL(8, 8);
+            }
+            const img = document.getElementById('f-out-qr-img');
+            const label = document.getElementById('f-out-qr-label');
+            img.src = _qrDataURLCache[url];
+            img.style.width = `${size}px`;
+            img.style.height = `${size}px`;
+            if (label) {
+                label.textContent = sel.options[sel.selectedIndex]?.textContent || '';
+                label.style.maxWidth = `${size}px`;
+            }
+            wrap.classList.remove('hidden');
+        } catch (e) {
+            console.error('QR生成失敗', e);
+            wrap.classList.add('hidden');
+        }
     }
 
     function flyerUpdateText() {
@@ -2930,6 +3039,18 @@
         document.getElementById('f-artist-size').addEventListener('input', flyerUpdateArtists);
         document.getElementById('f-artist-vgap').addEventListener('input', flyerUpdateArtists);
         document.getElementById('f-artist-hgap').addEventListener('input', flyerUpdateArtists);
+
+        // プレイガイドQRコード
+        const qrCb = document.getElementById('f-qr-enabled');
+        if (qrCb) qrCb.addEventListener('change', () => {
+            document.getElementById('f-qr-settings').classList.toggle('hidden', !qrCb.checked);
+            if (qrCb.checked) updateQrSourceOptions();
+            flyerUpdateQR();
+        });
+        const qrSrc = document.getElementById('f-qr-source');
+        if (qrSrc) qrSrc.addEventListener('change', flyerUpdateQR);
+        const qrSize = document.getElementById('f-qr-size');
+        if (qrSize) qrSize.addEventListener('input', flyerUpdateQR);
 
         // バンド数
         document.getElementById('f-band-count').addEventListener('change', () => {
