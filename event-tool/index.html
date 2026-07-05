@@ -798,7 +798,11 @@
                 <div class="text-sm text-gray-600">
                     概要タブの内容から印刷用レイアウトを自動生成します。「PDF保存/印刷」ボタンでブラウザの印刷ダイアログが開きます。
                 </div>
-                <div class="flex gap-2">
+                <div class="flex gap-3 items-center flex-wrap">
+                    <label class="flex items-center gap-1.5 text-sm text-gray-700 cursor-pointer" title="内容が多いとき、文字サイズを自動で縮めてA4 1枚に収めます">
+                        <input type="checkbox" id="printAutoFit" class="w-4 h-4" checked>
+                        <span>A4 1枚に自動で収める</span>
+                    </label>
                     <button onclick="downloadXLSX()" class="bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-bold py-2 px-4 rounded">📊 Excel保存</button>
                     <button onclick="printPDFSheet()" class="bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-bold py-2 px-4 rounded">🖨 PDF保存 / 印刷</button>
                 </div>
@@ -808,12 +812,12 @@
             <div id="print-sheet" class="bg-white shadow-lg mx-auto" style="width: 210mm; min-height: 297mm; padding: 14mm 16mm; box-sizing: border-box; font-size: 13pt; line-height: 1.55; color: #111;">
                 <!-- 1. 日付・場所 -->
                 <div style="display:flex; justify-content: space-between; align-items: flex-end; border-bottom: 2px solid #111; padding-bottom: 6px; margin-bottom: 10px;">
-                    <div id="p-date" style="font-size: 18pt; font-weight: 700;"></div>
-                    <div id="p-place" style="font-size: 15pt; font-weight: 600;"></div>
+                    <div id="p-date" style="font-size: 1.38em; font-weight: 700;"></div>
+                    <div id="p-place" style="font-size: 1.15em; font-weight: 600;"></div>
                 </div>
 
                 <!-- 2. イベントタイトル -->
-                <div id="p-title" style="font-size: 22pt; font-weight: 700; text-align: center; margin: 6px 0 14px;"></div>
+                <div id="p-title" style="font-size: 1.69em; font-weight: 700; text-align: center; margin: 6px 0 14px;"></div>
 
                 <!-- 3. チケット料金 -->
                 <div style="margin-bottom: 10px;">
@@ -825,14 +829,14 @@
                 <!-- 5. リハーサルタイムテーブル -->
                 <div id="p-reha-wrap" style="margin-bottom: 10px;">
                     <div style="font-weight:700; background:#f1f5f9; padding:4px 8px; border-left:4px solid #10b981; margin-bottom: 4px;">リハーサル タイムテーブル</div>
-                    <table id="p-reha-table" style="width:100%; border-collapse: collapse; font-size: 13pt;"></table>
+                    <table id="p-reha-table" style="width:100%; border-collapse: collapse; font-size: 1em;"></table>
                 </div>
 
                 <!-- 6. オープン準備 -->
-                <div id="p-prep-wrap" style="margin: 6px 0 10px; padding: 6px 8px; background:#fef3c7; border: 1px dashed #d97706; font-size: 12.5pt;"></div>
+                <div id="p-prep-wrap" style="margin: 6px 0 10px; padding: 6px 8px; background:#fef3c7; border: 1px dashed #d97706; font-size: 0.96em;"></div>
 
                 <!-- 7. Open / Start -->
-                <div style="display:flex; gap: 16px; justify-content:center; margin: 6px 0 12px; font-size: 16pt; font-weight: 700;">
+                <div style="display:flex; gap: 16px; justify-content:center; margin: 6px 0 12px; font-size: 1.23em; font-weight: 700;">
                     <div>OPEN <span id="p-open"></span></div>
                     <div>/</div>
                     <div>START <span id="p-start"></span></div>
@@ -841,11 +845,11 @@
                 <!-- 8. 本番タイムテーブル -->
                 <div style="margin-bottom: 10px;">
                     <div style="font-weight:700; background:#f1f5f9; padding:4px 8px; border-left:4px solid #dc2626; margin-bottom: 4px;">本番 タイムテーブル</div>
-                    <table id="p-tt-table" style="width:100%; border-collapse: collapse; font-size: 13pt;"></table>
+                    <table id="p-tt-table" style="width:100%; border-collapse: collapse; font-size: 1em;"></table>
                 </div>
 
                 <!-- 9. 完全撤収時間 -->
-                <div id="p-teardown-wrap" style="margin: 6px 0 12px; padding: 6px 8px; background:#ede9fe; border: 1px dashed #6d28d9; font-size: 13pt; font-weight: 600; text-align: center;"></div>
+                <div id="p-teardown-wrap" style="margin: 6px 0 12px; padding: 6px 8px; background:#ede9fe; border: 1px dashed #6d28d9; font-size: 1em; font-weight: 600; text-align: center;"></div>
 
                 <!-- 10. 備考欄 -->
                 <div style="margin-top: 14px;">
@@ -897,7 +901,7 @@
             border: 1px solid #d1d5db; padding: 4px 6px; text-align: left;
         }
         #print-sheet table th {
-            background: #f9fafb; font-weight: 600; font-size: 12pt;
+            background: #f9fafb; font-weight: 600; font-size: 0.92em;
         }
         #print-sheet table td.time-col { width: 24%; font-variant-numeric: tabular-nums; white-space: nowrap; }
         #print-sheet table td.dur-col  { width: 12%; text-align: center; color: #6b7280; }
@@ -1564,6 +1568,39 @@
         // 10. 備考（otherInfoの内容を反映）
         const notesEl = document.getElementById('p-notes');
         if (notesEl) notesEl.textContent = d.other || '';
+
+        // 11. A4自動フィット
+        autoFitPrintSheet();
+    }
+
+    // 内容がA4(297mm)を超える場合、シートの基準文字サイズを少しずつ下げて1枚に収める。
+    // シート内の文字サイズは全て em (基準13ptへの相対値) なので、ここを下げると全体が縮む
+    function autoFitPrintSheet() {
+        const sheet = document.getElementById('print-sheet');
+        if (!sheet) return;
+        sheet.style.fontSize = '';   // まず基準の13ptに戻す
+        sheet.style.lineHeight = ''; // 行間も基準の1.55に戻す
+        const auto = document.getElementById('printAutoFit');
+        if (auto && !auto.checked) return;
+        const mmToPx = sheet.offsetWidth / 210; // 幅が210mm固定なのでpx換算係数が得られる
+        const targetH = Math.ceil(297 * mmToPx) + 2;
+        // 第1段階: 文字サイズを 13pt → 9.5pt まで下げる
+        let size = 13;
+        while (size > 9.5 && sheet.scrollHeight > targetH) {
+            size -= 0.5;
+            sheet.style.fontSize = `${size}pt`;
+        }
+        // 第2段階: それでも収まらなければ行間を 1.55 → 1.2 まで詰める
+        let lh = 1.55;
+        while (lh > 1.2 && sheet.scrollHeight > targetH) {
+            lh -= 0.05;
+            sheet.style.lineHeight = lh.toFixed(2);
+        }
+        // 最終段階: 文字サイズを下限8ptまで下げる
+        while (size > 8 && sheet.scrollHeight > targetH) {
+            size -= 0.5;
+            sheet.style.fontSize = `${size}pt`;
+        }
     }
 
     // 完全撤収・スタッフ入りの UI 連動（チェックで有効化、モードで相対/時刻入力を切替）
@@ -1829,16 +1866,22 @@
         }
 
         // ダウンロード
-        const buf = await wb.xlsx.writeBuffer();
-        const blob = new Blob([buf], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        const title = document.getElementById('eventTitle').value || 'timetable';
-        const dateVal = document.getElementById('eventDate').value || '';
-        a.href = url;
-        a.download = `${dateVal}_${title}_timetable.xlsx`;
-        a.click();
-        URL.revokeObjectURL(url);
+        try {
+            const buf = await wb.xlsx.writeBuffer();
+            const blob = new Blob([buf], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            const title = document.getElementById('eventTitle').value || 'timetable';
+            const dateVal = document.getElementById('eventDate').value || '';
+            a.href = url;
+            a.download = `${dateVal}_${title}_timetable.xlsx`;
+            a.click();
+            URL.revokeObjectURL(url);
+            showToast('Excelファイルを保存しました ✓');
+        } catch (err) {
+            console.error(err);
+            showToast('Excelの保存に失敗しました。もう一度お試しください', 'error');
+        }
     }
 
     function copyToClipboard() {
@@ -1910,6 +1953,7 @@
         ];
         customRehaOrder = [];
         const crResetCb = document.getElementById('enableCustomRehaOrder'); if (crResetCb) crResetCb.checked = false;
+        const afResetCb = document.getElementById('printAutoFit'); if (afResetCb) afResetCb.checked = true;
         renderTickets(); renderDrinks(); renderPlayguides(); renderBands(); renderRehaOrder(); updateCustomRehaUI(); calculate();
         // フライヤー側もまとめてリセット
         performFlyerReset();
@@ -2083,6 +2127,7 @@
                 bands: bands2Array(),
                 customRehaEnabled: getChk('enableCustomRehaOrder'),
                 rehaOrderIdx: rehaOrder2IdxArray(),
+                printAutoFit: getChk('printAutoFit'),
             },
             flyer: {
                 fTitle: getVal('f-title'),
@@ -2210,6 +2255,7 @@
         a.download = `${title}_イベントデータ.json`;
         a.click();
         URL.revokeObjectURL(a.href);
+        showToast('イベントデータを保存しました ✓');
     }
 
     function importStateJSON(file) {
@@ -2239,6 +2285,27 @@
             location.reload();
         };
         reader.readAsText(file);
+    }
+
+    // 画面下中央に成功/失敗の通知を出す（3.5秒で自動で消える）
+    function showToast(msg, type = 'success') {
+        let el = document.getElementById('appToast');
+        if (!el) {
+            el = document.createElement('div');
+            el.id = 'appToast';
+            el.style.cssText = 'position:fixed;bottom:20px;left:50%;transform:translateX(-50%);padding:10px 20px;border-radius:8px;box-shadow:0 4px 14px rgba(0,0,0,0.3);font-size:13px;font-weight:700;z-index:9999;transition:opacity 0.3s;max-width:90vw;';
+            document.body.appendChild(el);
+        }
+        el.style.background = type === 'error' ? '#dc2626' : '#059669';
+        el.style.color = '#ffffff';
+        el.textContent = msg;
+        el.style.display = 'block';
+        el.style.opacity = '1';
+        clearTimeout(el._hideTimer);
+        el._hideTimer = setTimeout(() => {
+            el.style.opacity = '0';
+            setTimeout(() => { el.style.display = 'none'; }, 300);
+        }, 3500);
     }
 
     function showSaveWarning(msg) {
@@ -2291,6 +2358,8 @@
         if (Array.isArray(ov.rehaOrderIdx)) {
             customRehaOrder = ov.rehaOrderIdx.map(i => bands[i] && bands[i]._uid).filter(Boolean);
         }
+        const afCb = document.getElementById('printAutoFit');
+        if (afCb) afCb.checked = ov.printAutoFit !== false; // 保存が無い場合はON扱い
         const crCb = document.getElementById('enableCustomRehaOrder');
         if (crCb) crCb.checked = !!ov.customRehaEnabled;
         // 旧保存形式（rehearsalType='customRehearsal'）からの引き継ぎ
@@ -3067,9 +3136,10 @@
             document.body.appendChild(link);
             link.click();
             document.body.removeChild(link);
+            showToast('フライヤー画像を保存しました ✓');
         } catch (err) {
             console.error(err);
-            alert('画像の保存に失敗しました。\nコンソールのエラーをご確認ください。');
+            showToast('画像の保存に失敗しました。もう一度お試しください', 'error');
         } finally {
             for (const restore of photoRestorers) {
                 try { restore(); } catch (e) { /* ignore */ }
@@ -3088,6 +3158,10 @@
             const el = document.getElementById(id);
             if (el) el.addEventListener('input', calculate);
         });
+
+        // 印刷のA4自動フィット切替
+        const autoFitCb = document.getElementById('printAutoFit');
+        if (autoFitCb) autoFitCb.addEventListener('change', autoFitPrintSheet);
 
         // 会場名・タイトルの確定時（フォーカスが外れたとき）に入力履歴へ記録
         const placeEl = document.getElementById('eventPlace');
