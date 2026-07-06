@@ -965,10 +965,10 @@
         <section id="ex-result" class="hidden section-card border-l-4 border-indigo-500">
             <h3 class="text-sm font-bold text-gray-800 mb-1">読み取り結果</h3>
             <p class="text-xs text-gray-500 mb-3">中身は自由に直せます。食い違い（<span class="text-red-600 font-bold">要確認</span>）は正しい方をクリックして選んでください。</p>
-            <div id="ex-warnings" class="hidden mb-4 space-y-2"></div>
             <div id="ex-scalars" class="space-y-3 mb-5"></div>
             <div id="ex-arrays" class="space-y-4"></div>
-            <button type="button" onclick="exApply()" class="w-full mt-5 bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-2.5 rounded-lg transition">✓ この内容を「概要作成」フォームに反映</button>
+            <div id="ex-warnings" class="hidden mt-5 space-y-2"></div>
+            <button type="button" onclick="exApply()" class="w-full mt-3 bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-2.5 rounded-lg transition">✓ この内容を「概要作成」フォームに反映</button>
         </section>
     </div>
 
@@ -1309,11 +1309,11 @@
         if (!w.major.length && !w.minor.length) { box.classList.add('hidden'); box.innerHTML = ''; return; }
         let html = '';
         if (w.major.length) {
-            html += '<div class="bg-red-50 border border-red-200 rounded-lg px-3 py-2 text-xs text-red-700"><span class="font-bold">⚠ 主要情報が読み取れていません: </span>'
-                + w.major.map(escapeHtml).join('・') + '<span class="text-red-500">　下の欄に直接入力してください</span></div>';
+            html += '<div class="bg-red-600 rounded-lg px-3 py-2.5 text-xs text-white shadow-sm"><span class="font-bold">⚠ 主要情報が足りません: </span>'
+                + '<span class="font-bold">' + w.major.map(escapeHtml).join('・') + '</span><span class="text-red-100">　下の欄に直接入力してください</span></div>';
         }
         if (w.minor.length) {
-            html += '<div class="bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 text-xs text-amber-700"><span class="font-bold">📝 足りない項目: </span>'
+            html += '<div class="bg-red-50 border-2 border-red-300 rounded-lg px-3 py-2.5 text-xs text-red-700"><span class="font-bold text-red-600">⚠ 足りない項目: </span>'
                 + w.minor.map(escapeHtml).join(' ／ ') + '</div>';
         }
         box.innerHTML = html;
