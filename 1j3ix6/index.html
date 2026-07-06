@@ -82,6 +82,10 @@
         .move-btn:hover:not(:disabled) { background: #eef2ff; color: #4f46e5; border-color: #a5b4fc; }
         .move-btn:disabled { opacity: 0.3; cursor: default; }
         .reha-order-row.reha-drop-target { border-color: #4f46e5; box-shadow: 0 -2px 0 0 #4f46e5; }
+        /* 出演者行のドラッグ並べ替え: つかみ手と挿入位置のハイライト */
+        .band-drag-handle { cursor: grab; }
+        .band-drag-handle:active { cursor: grabbing; }
+        .band-grid.band-drop-target { box-shadow: 0 -2px 0 0 #4f46e5; border-radius: 2px; }
 
         /* トップ出演者の転換欄（無効）: グレー地＋破線で「使われない」ことを見せる */
         .band-change-disabled {
@@ -1492,7 +1496,7 @@
             const el = document.createElement('div');
             el.className = 'band-grid group';
             el.innerHTML = `
-                <div class="text-center font-bold text-gray-400 text-sm hidden sm:block">${i+1}</div>
+                <div class="band-drag-handle text-center font-bold text-gray-400 text-sm hidden sm:block select-none" draggable="true" title="ドラッグで並べ替え">⠿${i+1}</div>
                 <div>
                     <label class="block sm:hidden text-xs font-bold text-gray-500 mb-1">出演者 ${i+1}</label>
                     <input type="text" value="${b.name}" placeholder="出演者名" class="input-field py-1" list="band-name-history" oninput="updateBand(${i},'name',this.value)" onchange="addToHistory('bands', this.value)">
@@ -1510,9 +1514,39 @@
                 </div>
                 <button class="remove-btn" onclick="removeBand(${i})">✕</button>
             `;
+            // ドラッグ並べ替え: つかみ手(⠿)からだけドラッグ開始できる（入力欄の操作と衝突させない）
+            const handle = el.querySelector('.band-drag-handle');
+            if (handle) {
+                handle.addEventListener('dragstart', e => {
+                    bandDragIndex = i;
+                    el.classList.add('opacity-50');
+                    e.dataTransfer.effectAllowed = 'move';
+                    try { e.dataTransfer.setData('text/plain', String(i)); } catch(_) {}
+                });
+                handle.addEventListener('dragend', () => {
+                    bandDragIndex = null;
+                    document.querySelectorAll('.band-grid').forEach(r => r.classList.remove('opacity-50', 'band-drop-target'));
+                });
+            }
+            el.addEventListener('dragover', e => {
+                if (bandDragIndex === null) return;
+                e.preventDefault();
+                e.dataTransfer.dropEffect = 'move';
+                document.querySelectorAll('.band-grid').forEach(r => r.classList.remove('band-drop-target'));
+                if (i !== bandDragIndex) el.classList.add('band-drop-target');
+            });
+            el.addEventListener('drop', e => {
+                e.preventDefault();
+                if (bandDragIndex === null || i === bandDragIndex) return;
+                const moved = bands.splice(bandDragIndex, 1)[0];
+                bands.splice(i, 0, moved);
+                bandDragIndex = null;
+                renderBands(); calculate();
+            });
             c.appendChild(el);
         });
     }
+    let bandDragIndex = null;
 
     // データ操作
     function addTicketRow() { tickets.push({ name: '', price: '' }); renderTickets(); calculate(); }
