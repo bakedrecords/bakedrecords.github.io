@@ -86,6 +86,10 @@
         .band-drag-handle { cursor: grab; }
         .band-drag-handle:active { cursor: grabbing; }
         .band-grid.band-drop-target { box-shadow: 0 -2px 0 0 #4f46e5; border-radius: 2px; }
+        /* 読み取りタブ: 解析中のぐるぐる ＆ 出演者ドラッグ並べ替え */
+        @keyframes exspin { to { transform: rotate(360deg); } }
+        .ex-spinner { display: inline-block; width: 1em; height: 1em; border: 2px solid rgba(255,255,255,0.4); border-top-color: #fff; border-radius: 50%; animation: exspin 0.8s linear infinite; vertical-align: -0.15em; margin-right: 0.4em; }
+        .ex-band-row.ex-drop-target { box-shadow: 0 -2px 0 0 #4f46e5; border-radius: 2px; }
 
         /* トップ出演者の転換欄（無効）: グレー地＋破線で「使われない」ことを見せる */
         .band-change-disabled {
@@ -961,6 +965,7 @@
         <section id="ex-result" class="hidden section-card border-l-4 border-indigo-500">
             <h3 class="text-sm font-bold text-gray-800 mb-1">読み取り結果</h3>
             <p class="text-xs text-gray-500 mb-3">中身は自由に直せます。食い違い（<span class="text-red-600 font-bold">要確認</span>）は正しい方をクリックして選んでください。</p>
+            <div id="ex-warnings" class="hidden mb-4 space-y-2"></div>
             <div id="ex-scalars" class="space-y-3 mb-5"></div>
             <div id="ex-arrays" class="space-y-4"></div>
             <button type="button" onclick="exApply()" class="w-full mt-5 bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-2.5 rounded-lg transition">✓ この内容を「概要作成」フォームに反映</button>
@@ -1176,7 +1181,8 @@
         } catch (_) {}
         const btn = document.getElementById('ex-analyze-btn');
         btn.disabled = true;
-        exStatus('AIが読み取り中です…（10〜20秒ほどかかります）', '');
+        btn.innerHTML = '<span class="ex-spinner"></span>解析中…（10〜20秒ほどかかります）';
+        exStatus('AIが読み取り中です…', '');
         try {
             const res = await fetch(EX_WORKER_URL, {
                 method: 'POST',
@@ -1201,6 +1207,7 @@
             exStatus('通信エラー: ' + (e.message || e), 'error');
         } finally {
             btn.disabled = false;
+            btn.innerHTML = '🔍 解析する';
         }
     }
 
@@ -1243,8 +1250,8 @@
         const wrap = document.createElement('div');
         const idAttr = 'exs-' + f.key;
         const inputHtml = f.type === 'textarea'
-            ? '<textarea rows="2" id="' + idAttr + '" class="input-field resize-y" oninput="exState.scalars[\'' + f.key + '\'].value=this.value">' + escapeHtml(value || '') + '</textarea>'
-            : '<input type="' + f.type + '" id="' + idAttr + '" class="input-field" value="' + escapeHtml(value || '') + '" oninput="exState.scalars[\'' + f.key + '\'].value=this.value">';
+            ? '<textarea rows="2" id="' + idAttr + '" class="input-field resize-y" oninput="exState.scalars[\'' + f.key + '\'].value=this.value;exUpdateWarnings()">' + escapeHtml(value || '') + '</textarea>'
+            : '<input type="' + f.type + '" id="' + idAttr + '" class="input-field" value="' + escapeHtml(value || '') + '" oninput="exState.scalars[\'' + f.key + '\'].value=this.value;exUpdateWarnings()">';
         let picker = '';
         if (status === 'conflict') {
             picker = '<div class="flex gap-2 mt-1 flex-wrap">'
@@ -1260,6 +1267,7 @@
         const el = document.getElementById('exs-' + key);
         if (el) el.value = v;
         if (exState.scalars[key]) exState.scalars[key].value = v;
+        exUpdateWarnings();
     }
 
     function exRenderArrays() {
@@ -1269,20 +1277,94 @@
         c.appendChild(exPairSection('tickets', 'チケット', 'price', '種別（例: 前売）', '金額'));
         c.appendChild(exPairSection('drinks', 'ドリンク', 'price', '種別（例: +1D）', '金額'));
         c.appendChild(exPairSection('playguides', 'プレイガイド', 'url', '名前（例: e+）', 'URL'));
+        exUpdateWarnings();
     }
 
+    // ---- 不足チェック（主要=赤 / 軽微=黄）----
+    function exCollectWarnings() {
+        const major = [], minor = [];
+        const sv = k => String((exState.scalars[k] && exState.scalars[k].value) || '').trim();
+        if (!sv('eventTitle')) major.push('イベントタイトル');
+        if (!sv('eventDate')) major.push('開催日');
+        if (!sv('eventPlace')) major.push('開催場所');
+        if (!sv('openTime')) minor.push('OPEN時刻が空です');
+        if (!sv('startTime')) minor.push('START時刻が空です');
+        if (!exState.bands.some(b => String(b.name || '').trim())) minor.push('出演者が1組も入っていません');
+        exState.tickets.forEach(t => {
+            if (String(t.name || '').trim() && (t.price == null || t.price === '')) minor.push('チケット「' + t.name + '」の金額がありません');
+        });
+        exState.drinks.forEach(d => {
+            if (String(d.name || '').trim() && (d.price == null || d.price === '')) minor.push('ドリンク「' + d.name + '」の金額がありません');
+        });
+        exState.playguides.forEach(p => {
+            if (String(p.name || '').trim() && !String(p.url || '').trim()) minor.push('プレイガイド「' + p.name + '」のURLがありません');
+        });
+        return { major, minor };
+    }
+
+    function exUpdateWarnings() {
+        const box = document.getElementById('ex-warnings');
+        if (!box) return;
+        const w = exCollectWarnings();
+        if (!w.major.length && !w.minor.length) { box.classList.add('hidden'); box.innerHTML = ''; return; }
+        let html = '';
+        if (w.major.length) {
+            html += '<div class="bg-red-50 border border-red-200 rounded-lg px-3 py-2 text-xs text-red-700"><span class="font-bold">⚠ 主要情報が読み取れていません: </span>'
+                + w.major.map(escapeHtml).join('・') + '<span class="text-red-500">　下の欄に直接入力してください</span></div>';
+        }
+        if (w.minor.length) {
+            html += '<div class="bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 text-xs text-amber-700"><span class="font-bold">📝 足りない項目: </span>'
+                + w.minor.map(escapeHtml).join(' ／ ') + '</div>';
+        }
+        box.innerHTML = html;
+        box.classList.remove('hidden');
+    }
+
+    let exBandDragIndex = null;
     function exBandSection() {
         const sec = document.createElement('div');
         const rows = exState.bands.map((b, i) =>
-            '<div class="flex gap-1.5 items-center">'
-            + '<input type="text" class="input-field py-1 text-sm flex-1" value="' + escapeHtml(b.name || '') + '" oninput="exState.bands[' + i + '].name=this.value">'
+            '<div class="ex-band-row flex gap-1.5 items-center" data-i="' + i + '">'
+            + '<span class="ex-band-handle text-gray-300 select-none cursor-grab px-0.5" draggable="true" title="ドラッグで並べ替え">⠿</span>'
+            + '<span class="text-xs font-bold text-gray-400 w-4 text-center select-none">' + (i + 1) + '</span>'
+            + '<input type="text" class="input-field py-1 text-sm flex-1" value="' + escapeHtml(b.name || '') + '" oninput="exState.bands[' + i + '].name=this.value;exUpdateWarnings()">'
             + exSourceBadge(b.source)
             + '<button type="button" class="remove-btn text-xs" onclick="exState.bands.splice(' + i + ',1);exRenderArrays()">✕</button>'
             + '</div>'
         ).join('');
-        sec.innerHTML = '<div class="text-xs font-bold text-gray-600 mb-1">出演者（' + exState.bands.length + '組）</div>'
+        sec.innerHTML = '<div class="text-xs font-bold text-gray-600 mb-1">出演者（' + exState.bands.length + '組）<span class="font-normal text-gray-400">　⠿を掴んで出演順に並べ替え</span></div>'
             + '<div class="space-y-1.5">' + rows + '</div>'
             + '<button type="button" class="text-xs text-indigo-600 mt-1.5" onclick="exState.bands.push({name:\'\',source:\'\'});exRenderArrays()">＋ 出演者を追加</button>';
+        // ドラッグ並べ替え（つかみ手からだけ開始。入力欄と衝突させない）
+        sec.querySelectorAll('.ex-band-row').forEach(row => {
+            const i = +row.dataset.i;
+            const handle = row.querySelector('.ex-band-handle');
+            handle.addEventListener('dragstart', e => {
+                exBandDragIndex = i;
+                row.classList.add('opacity-50');
+                e.dataTransfer.effectAllowed = 'move';
+                try { e.dataTransfer.setData('text/plain', String(i)); } catch(_) {}
+            });
+            handle.addEventListener('dragend', () => {
+                exBandDragIndex = null;
+                document.querySelectorAll('.ex-band-row').forEach(r => r.classList.remove('opacity-50', 'ex-drop-target'));
+            });
+            row.addEventListener('dragover', e => {
+                if (exBandDragIndex === null) return;
+                e.preventDefault();
+                e.dataTransfer.dropEffect = 'move';
+                document.querySelectorAll('.ex-band-row').forEach(r => r.classList.remove('ex-drop-target'));
+                if (i !== exBandDragIndex) row.classList.add('ex-drop-target');
+            });
+            row.addEventListener('drop', e => {
+                e.preventDefault();
+                if (exBandDragIndex === null || i === exBandDragIndex) return;
+                const moved = exState.bands.splice(exBandDragIndex, 1)[0];
+                exState.bands.splice(i, 0, moved);
+                exBandDragIndex = null;
+                exRenderArrays();
+            });
+        });
         return sec;
     }
 
@@ -1292,10 +1374,10 @@
         const rows = arr.map((it, i) => {
             const val = (it[valueKey] == null) ? '' : it[valueKey];
             const valInput = isPrice
-                ? '<input type="number" class="input-field py-1 text-sm w-24" placeholder="' + valuePh + '" value="' + escapeHtml(String(val)) + '" oninput="exState.' + kind + '[' + i + '].' + valueKey + '=this.value===\'\'?null:Number(this.value)">'
-                : '<input type="text" class="input-field py-1 text-sm flex-1" placeholder="' + valuePh + '" value="' + escapeHtml(String(val)) + '" oninput="exState.' + kind + '[' + i + '].' + valueKey + '=this.value">';
+                ? '<input type="number" class="input-field py-1 text-sm w-24" placeholder="' + valuePh + '" value="' + escapeHtml(String(val)) + '" oninput="exState.' + kind + '[' + i + '].' + valueKey + '=this.value===\'\'?null:Number(this.value);exUpdateWarnings()">'
+                : '<input type="text" class="input-field py-1 text-sm flex-1" placeholder="' + valuePh + '" value="' + escapeHtml(String(val)) + '" oninput="exState.' + kind + '[' + i + '].' + valueKey + '=this.value;exUpdateWarnings()">'
             return '<div class="flex gap-1.5 items-center">'
-                + '<input type="text" class="input-field py-1 text-sm ' + (isPrice ? 'flex-1' : 'w-28') + '" placeholder="' + namePh + '" value="' + escapeHtml(it.name || '') + '" oninput="exState.' + kind + '[' + i + '].name=this.value">'
+                + '<input type="text" class="input-field py-1 text-sm ' + (isPrice ? 'flex-1' : 'w-28') + '" placeholder="' + namePh + '" value="' + escapeHtml(it.name || '') + '" oninput="exState.' + kind + '[' + i + '].name=this.value;exUpdateWarnings()">'
                 + valInput
                 + exSourceBadge(it.source)
                 + '<button type="button" class="remove-btn text-xs" onclick="exState.' + kind + '.splice(' + i + ',1);exRenderArrays()">✕</button>'
@@ -1311,6 +1393,11 @@
 
     // ---- 概要フォームへ反映 ----
     function exApply() {
+        // 主要情報（タイトル・開催日・開催場所）が空のままなら、反映前に一度確認する
+        const w = exCollectWarnings();
+        if (w.major.length) {
+            if (!confirm('⚠ ' + w.major.join('・') + ' がまだ空です。\nこのまま反映しますか？（あとで概要作成フォームでも入力できます）')) return;
+        }
         // スカラー（空欄は上書きしない）
         EX_SCALARS.forEach(f => {
             const v = exState.scalars[f.key] ? exState.scalars[f.key].value : '';
