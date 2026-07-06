@@ -84,6 +84,10 @@
         .band-drag-handle { cursor: grab; }
         .band-drag-handle:active { cursor: grabbing; }
         .band-grid.band-drop-target { box-shadow: 0 -2px 0 0 #4f46e5; border-radius: 2px; }
+        /* 読み取りタブ: 解析中のぐるぐる ＆ 出演者ドラッグ並べ替え */
+        @keyframes exspin { to { transform: rotate(360deg); } }
+        .ex-spinner { display: inline-block; width: 1em; height: 1em; border: 2px solid rgba(255,255,255,0.4); border-top-color: #fff; border-radius: 50%; animation: exspin 0.8s linear infinite; vertical-align: -0.15em; margin-right: 0.4em; }
+        .ex-band-row.ex-drop-target { box-shadow: 0 -2px 0 0 #4f46e5; border-radius: 2px; }
 
         /* トップ出演者の転換欄（無効）: グレー地＋破線で「使われない」ことを見せる */
         .band-change-disabled {
@@ -165,6 +169,7 @@
         <button class="tab-btn active" id="tab-overview" onclick="switchTab('overview')">📝 概要作成</button>
         <button class="tab-btn" id="tab-print" onclick="switchTab('print')">📄 印刷用PDF</button>
         <button class="tab-btn" id="tab-flyer" onclick="switchTab('flyer')">🖼 フライヤー作成</button>
+        <button class="tab-btn" id="tab-extract" onclick="switchTab('extract')">🔍 フライヤーから読み取り</button>
     </div>
 
     <!-- ========== TAB: 概要作成 ========== -->
@@ -914,6 +919,63 @@
         #print-sheet table td.dur-col  { width: 12%; text-align: center; color: #6b7280; }
     </style>
 
+    <!-- ========== TAB: フライヤーから読み取り ========== -->
+    <div id="panel-extract" class="hidden max-w-3xl mx-auto p-4 md:p-8 space-y-5">
+        <section class="section-card border-l-4 border-emerald-500">
+            <h2 class="text-base font-bold text-gray-800 mb-1 flex items-center">
+                <span class="bg-emerald-100 text-emerald-700 px-2 py-0.5 rounded mr-2 text-xs font-bold">AI</span> フライヤー・告知文から自動入力
+            </h2>
+            <p class="text-xs text-gray-500 mb-4 leading-relaxed">フライヤー画像や告知テキストをAIが読み取り、「概要作成」フォームに自動で流し込みます。画像とテキストの両方を入れると、内容の食い違いを見比べて選べます。</p>
+
+            <!-- APIキー -->
+            <div class="mb-4">
+                <label class="input-label">Google Gemini APIキー</label>
+                <div class="flex gap-2 items-center flex-wrap">
+                    <input type="password" id="ex-apikey" class="input-field flex-1 min-w-[10rem]" placeholder="AIza… で始まるキーを貼り付け" autocomplete="off">
+                    <label class="text-xs text-gray-500 flex items-center gap-1 whitespace-nowrap"><input type="checkbox" id="ex-remember" class="align-middle"> この端末に記憶</label>
+                </div>
+                <div class="mt-2 text-[11px] text-gray-500 leading-relaxed bg-gray-50 border border-gray-200 rounded-lg px-3 py-2">
+                    この機能はGoogleのAI「Gemini」を利用します。利用にはご自身のAPIキー（無料で取得できます）が必要です。
+                    <a href="https://aistudio.google.com/apikey" target="_blank" rel="noopener" class="text-indigo-600 underline">Google AI Studio</a> にGoogleアカウントでログイン →「APIキーを作成」でコピーして、上の欄に貼り付けてください。<br>
+                    🔒 キーと画像・テキストは、お使いのブラウザから<b>Googleへ直接</b>送信されます。当サイトのサーバーには送信・保存されません。<br>
+                    ⚠️ 「この端末に記憶」はこのブラウザ内にキーを保存します。<b>共用パソコンではチェックを入れない</b>でください。キーは他人に教えないでください。
+                </div>
+            </div>
+
+            <!-- 画像アップロード -->
+            <div class="mb-4">
+                <label class="input-label">フライヤー画像（任意）</label>
+                <div id="ex-drop" class="border-2 border-dashed border-gray-300 rounded-lg px-4 py-6 text-center text-sm text-gray-500 cursor-pointer hover:border-emerald-400 hover:bg-emerald-50 transition">
+                    ここに画像をドラッグ＆ドロップ<br>またはクリックして選択
+                    <input type="file" id="ex-file" accept="image/*" class="hidden">
+                </div>
+                <div id="ex-preview-wrap" class="hidden mt-3 relative inline-block">
+                    <img id="ex-preview" class="max-h-52 rounded-lg border border-gray-200" alt="プレビュー">
+                    <button type="button" onclick="exClearImage()" class="absolute -top-2 -right-2 bg-red-500 hover:bg-red-600 text-white rounded-full w-6 h-6 text-xs leading-6 shadow" title="画像を外す">✕</button>
+                </div>
+            </div>
+
+            <!-- テキスト貼付 -->
+            <div class="mb-4">
+                <label class="input-label">告知文テキスト（任意）</label>
+                <textarea id="ex-text" rows="5" class="input-field resize-y" placeholder="SNSの告知文・メールの本文などをそのまま貼り付け"></textarea>
+            </div>
+
+            <button type="button" id="ex-analyze-btn" onclick="exAnalyze()" class="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-2.5 rounded-lg transition disabled:opacity-50">🔍 解析する</button>
+            <p id="ex-status" class="text-xs text-center mt-2 hidden"></p>
+        </section>
+
+        <!-- 読み取り結果（JSが描画） -->
+        <section id="ex-result" class="hidden section-card border-l-4 border-indigo-500">
+            <h3 class="text-sm font-bold text-gray-800 mb-1">読み取り結果</h3>
+            <p class="text-xs text-gray-500 mb-3">中身は自由に直せます。食い違い（<span class="text-red-600 font-bold">要確認</span>）は正しい方をクリックして選んでください。</p>
+            <div id="ex-scalars" class="space-y-3 mb-5"></div>
+            <div id="ex-arrays" class="space-y-4"></div>
+            <div id="ex-warnings" class="hidden mt-5 space-y-2"></div>
+            <button type="button" onclick="exApply()" class="w-full mt-3 bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-2.5 rounded-lg transition">✓ この内容を「概要作成」フォームに反映</button>
+        </section>
+    </div>
+
     <script>
     // ============================================================
     // 概要ジェネレーター: データ
@@ -958,17 +1020,21 @@
         const overviewPanel = document.getElementById('panel-overview');
         const flyerPanel = document.getElementById('panel-flyer');
         const printPanel = document.getElementById('panel-print');
+        const extractPanel = document.getElementById('panel-extract');
         const tabOv = document.getElementById('tab-overview');
         const tabFl = document.getElementById('tab-flyer');
         const tabPr = document.getElementById('tab-print');
+        const tabEx = document.getElementById('tab-extract');
 
         // 全て非表示＆非アクティブに
         overviewPanel.classList.add('hidden');
         flyerPanel.style.display = 'none';
         printPanel.classList.add('hidden');
+        if (extractPanel) extractPanel.classList.add('hidden');
         tabOv.classList.remove('active');
         tabFl.classList.remove('active');
         tabPr.classList.remove('active');
+        if (tabEx) tabEx.classList.remove('active');
 
         if (tab === 'overview') {
             overviewPanel.classList.remove('hidden');
@@ -982,12 +1048,462 @@
             printPanel.classList.remove('hidden');
             tabPr.classList.add('active');
             updatePrintSheet();
+        } else if (tab === 'extract') {
+            if (extractPanel) extractPanel.classList.remove('hidden');
+            if (tabEx) tabEx.classList.add('active');
         }
     }
 
     function goToFlyer() {
         syncFromOverview();
         switchTab('flyer');
+    }
+
+    // ============================================================
+    // フライヤーから読み取り
+    //   フライヤー画像 / 告知テキスト → 利用者自身のAPIキーでGeminiを直接呼ぶ → 突き合わせ → 概要フォームへ反映
+    //   ※キーと素材はブラウザからGoogleへ直接送信。当サイトのサーバーは経由しない
+    // ============================================================
+    const EX_APIKEY_STORAGE = 'eventToolGeminiKey_v1';
+    const EX_MODEL = 'gemini-2.5-flash';
+    let exState = { image: null, scalars: {}, bands: [], tickets: [], drinks: [], playguides: [] };
+
+    const EX_INSTRUCTION = `あなたはライブイベントのフライヤー画像や告知文から、イベント情報を正確に抽出するアシスタントです。
+与えられた素材（画像またはテキスト）から、次のJSONスキーマ「だけ」を出力してください。説明文やマークダウンの装飾は一切付けないこと。
+
+{
+  "eventTitle": string|null,       // イベント名・公演タイトル
+  "eventDate": string|null,        // "YYYY-MM-DD" 形式。年が書かれていなければ TODAY 以降で最も近い日付になる年を使う
+  "eventPlace": string|null,       // 会場名（ライブハウス名など）
+  "eventAddress": string|null,     // 会場の住所
+  "openTime": string|null,         // "HH:MM"（24時間表記）OPEN/開場
+  "startTime": string|null,        // "HH:MM"（24時間表記）START/開演
+  "bands": string[],               // 出演者・バンド名の配列（判別できた順）
+  "tickets": [{"name": string, "price": number|null}],   // 例 前売/当日。price は数値のみ
+  "drinks": [{"name": string, "price": number|null}],    // ドリンク代など
+  "playguides": [{"name": string, "url": string|null}],  // プレイガイド・チケット販売リンク
+  "otherInfo": string|null         // その他の注意書き（あれば）
+}
+
+ルール:
+- 読み取れない項目は null（配列は空配列 []）にする。推測で埋めない。
+- 時刻は必ず "HH:MM" の24時間表記に正規化する（例 "18時半" → "18:30", "6:00PM" → "18:00"）。
+- 金額は数値のみにする（"¥2,500" → 2500）。
+- 【重要・ライブハウスの1ドリンク制】ライブハウスは入場時に別途1ドリンク代がかかる「1ドリンク制」が基本。"1D" "+1D" "＋1ドリンク" "要1ドリンク" "1ドリンク別" などのドリンク代の表記は、チケット代とは別物として必ず分けること:
+    - tickets の name には "+1D" 等のドリンク表記を絶対に含めない（例: "前売 一般 +1D" → name は "前売 一般"、"22歳以下 +1D" → "22歳以下"）。tickets の price はチケット本体の金額だけにする。
+    - ドリンク代は drinks に入れる。金額が明記されていれば {"name":"1ドリンク","price":その金額}、金額が不明でも "1D"/"+1D" 等の表記が1つでもあれば {"name":"1ドリンク","price":null} を drinks に入れる。
+    - drinks の "1ドリンク" は、複数のチケットに +1D が付いていても重複させず1つにまとめる。
+- bands は装飾記号・"and more"・"O.A." などの但し書きを除いた、出演者名そのものだけにする。`;
+
+    // Gemini API をブラウザから直接呼ぶ（キーは利用者自身のもの）
+    async function exCallGemini(parts, apiKey) {
+        const url = 'https://generativelanguage.googleapis.com/v1beta/models/' + EX_MODEL + ':generateContent';
+        const res = await fetch(url, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'x-goog-api-key': apiKey },
+            body: JSON.stringify({
+                contents: [{ role: 'user', parts: parts }],
+                generationConfig: { responseMimeType: 'application/json', temperature: 0 }
+            })
+        });
+        if (!res.ok) {
+            let msg = 'HTTP ' + res.status;
+            try { const e = await res.json(); if (e.error && e.error.message) msg = e.error.message; } catch (_) {}
+            if (res.status === 400 || res.status === 401 || res.status === 403) {
+                throw new Error('APIキーが正しくないか、権限がありません（' + msg.slice(0, 120) + '）');
+            }
+            if (res.status === 429) throw new Error('利用回数の上限に達しました。少し時間をおいて試してください');
+            throw new Error('AIの呼び出しに失敗しました（' + msg.slice(0, 120) + '）');
+        }
+        const data = await res.json();
+        const text = ((data.candidates && data.candidates[0] && data.candidates[0].content && data.candidates[0].content.parts) || []).map(p => p.text || '').join('');
+        if (!text) throw new Error('AIが空の応答を返しました');
+        try { return JSON.parse(text); } catch (_) {
+            const m = text.match(/\{[\s\S]*\}/);
+            if (!m) throw new Error('AIの応答を解釈できませんでした');
+            return JSON.parse(m[0]);
+        }
+    }
+
+    // 概要フォームへ流し込むスカラー項目（key=AI出力キー / form=入力欄のid）
+    const EX_SCALARS = [
+        { key: 'eventTitle',   label: 'イベントタイトル', form: 'eventTitle',   type: 'text' },
+        { key: 'eventDate',    label: '開催日',           form: 'eventDate',    type: 'date' },
+        { key: 'eventPlace',   label: '開催場所',         form: 'eventPlace',   type: 'text' },
+        { key: 'eventAddress', label: '会場住所',         form: 'eventAddress', type: 'text' },
+        { key: 'openTime',     label: 'OPEN',             form: 'openTime',     type: 'time' },
+        { key: 'startTime',    label: 'START',            form: 'startTime',    type: 'time' },
+        { key: 'otherInfo',    label: 'その他・備考',     form: 'otherInfo',    type: 'textarea' },
+    ];
+
+    // 比較用の正規化（表示は元のまま。比較だけ小文字・空白除去）
+    function exNorm(s) { return String(s == null ? '' : s).trim().toLowerCase().replace(/\s+/g, '').replace(/　/g, ''); }
+
+    function exCompareScalar(a, b) {
+        const A = a != null && String(a).trim() !== '';
+        const B = b != null && String(b).trim() !== '';
+        if (A && B) return exNorm(a) === exNorm(b) ? 'match' : 'conflict';
+        if (A || B) return 'partial';
+        return 'none';
+    }
+
+    // 出演者名の名寄せマージ（both/image/text）
+    function exMergeSimpleList(imgList, textList) {
+        imgList = imgList || []; textList = textList || [];
+        const result = [], seen = new Set();
+        imgList.forEach(name => {
+            const n = exNorm(name); if (!n || seen.has(n)) return;
+            const inText = textList.some(t => exNorm(t) === n);
+            result.push({ name: String(name).trim(), source: inText ? 'both' : 'image' }); seen.add(n);
+        });
+        textList.forEach(name => {
+            const n = exNorm(name); if (!n || seen.has(n)) return;
+            result.push({ name: String(name).trim(), source: 'text' }); seen.add(n);
+        });
+        return result;
+    }
+
+    // 名前+値ペアのマージ（both/image/text/conflict）
+    function exMergeObjList(imgList, textList, valueKey) {
+        imgList = imgList || []; textList = textList || [];
+        const result = [], seen = new Set();
+        imgList.forEach(item => {
+            const n = exNorm(item && item.name); if (!n || seen.has(n)) return;
+            const match = textList.find(t => exNorm(t.name) === n);
+            let value = (item[valueKey] != null) ? item[valueKey] : null, source = 'image';
+            if (match) {
+                const tv = (match[valueKey] != null) ? match[valueKey] : null;
+                source = (value != null && tv != null && String(value) !== String(tv)) ? 'conflict' : 'both';
+                if (value == null) value = tv;
+            }
+            result.push({ name: String(item.name).trim(), [valueKey]: value, source }); seen.add(n);
+        });
+        textList.forEach(item => {
+            const n = exNorm(item && item.name); if (!n || seen.has(n)) return;
+            result.push({ name: String(item.name).trim(), [valueKey]: (item[valueKey] != null ? item[valueKey] : null), source: 'text' }); seen.add(n);
+        });
+        return result;
+    }
+
+    // ---- 画像アップロード ----
+    function exSetupImage() {
+        const drop = document.getElementById('ex-drop');
+        const file = document.getElementById('ex-file');
+        if (!drop || !file) return;
+        drop.addEventListener('click', () => file.click());
+        file.addEventListener('change', () => { if (file.files && file.files[0]) exHandleFile(file.files[0]); });
+        ['dragenter', 'dragover'].forEach(ev => drop.addEventListener(ev, e => { e.preventDefault(); e.stopPropagation(); drop.classList.add('border-emerald-400', 'bg-emerald-50'); }));
+        ['dragleave', 'drop'].forEach(ev => drop.addEventListener(ev, e => { e.preventDefault(); e.stopPropagation(); drop.classList.remove('border-emerald-400', 'bg-emerald-50'); }));
+        drop.addEventListener('drop', e => { const f = e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files[0]; if (f) exHandleFile(f); });
+    }
+
+    function exHandleFile(f) {
+        if (!f.type || !f.type.startsWith('image/')) { exStatus('画像ファイルを選んでください', 'error'); return; }
+        const reader = new FileReader();
+        reader.onload = () => {
+            const dataUrl = reader.result;
+            exState.image = { mime: f.type, base64: String(dataUrl).split(',')[1] || '' };
+            document.getElementById('ex-preview').src = dataUrl;
+            document.getElementById('ex-preview-wrap').classList.remove('hidden');
+            document.getElementById('ex-drop').classList.add('hidden');
+        };
+        reader.readAsDataURL(f);
+    }
+
+    function exClearImage() {
+        exState.image = null;
+        document.getElementById('ex-preview-wrap').classList.add('hidden');
+        document.getElementById('ex-drop').classList.remove('hidden');
+        const file = document.getElementById('ex-file'); if (file) file.value = '';
+    }
+
+    // ---- ステータス表示 ----
+    function exStatus(msg, type) {
+        const el = document.getElementById('ex-status');
+        el.textContent = msg;
+        el.className = 'text-xs text-center mt-2 ' + (type === 'error' ? 'text-red-600' : (type === 'ok' ? 'text-green-600' : 'text-gray-500'));
+    }
+
+    function exToday() {
+        const d = new Date();
+        const p = n => String(n).padStart(2, '0');
+        return d.getFullYear() + '-' + p(d.getMonth() + 1) + '-' + p(d.getDate());
+    }
+
+    // ---- 解析実行 ----
+    async function exAnalyze() {
+        const apiKey = document.getElementById('ex-apikey').value.trim();
+        const text = document.getElementById('ex-text').value.trim();
+        const image = exState.image;
+        if (!apiKey) { exStatus('APIキーを入力してください（上の説明から無料で取得できます）', 'error'); return; }
+        if (!image && !text) { exStatus('画像かテキストのどちらかを入れてください', 'error'); return; }
+        try {
+            if (document.getElementById('ex-remember').checked) localStorage.setItem(EX_APIKEY_STORAGE, apiKey);
+            else localStorage.removeItem(EX_APIKEY_STORAGE);
+        } catch (_) {}
+        const btn = document.getElementById('ex-analyze-btn');
+        btn.disabled = true;
+        btn.innerHTML = '<span class="ex-spinner"></span>解析中…（10〜20秒ほどかかります）';
+        exStatus('AIが読み取り中です…', '');
+        const todayLine = '\nTODAY = ' + exToday();
+        try {
+            let imageResult = null, textResult = null, imageError = null, textError = null;
+            const jobs = [];
+            if (image) {
+                jobs.push(exCallGemini([
+                    { text: EX_INSTRUCTION + todayLine + '\n\n上のルールで、この画像から抽出してください。' },
+                    { inlineData: { mimeType: image.mime || 'image/jpeg', data: image.base64 } }
+                ], apiKey).then(r => { imageResult = r; }).catch(e => { imageError = String(e.message || e); }));
+            }
+            if (text) {
+                jobs.push(exCallGemini([
+                    { text: EX_INSTRUCTION + todayLine + '\n\n上のルールで、次の告知文から抽出してください。\n\n---\n' + text.slice(0, 8000) + '\n---' }
+                ], apiKey).then(r => { textResult = r; }).catch(e => { textError = String(e.message || e); }));
+            }
+            await Promise.all(jobs);
+            if (!imageResult && !textResult) {
+                const em = [imageError, textError].filter(Boolean).join(' / ');
+                exStatus('読み取れませんでした' + (em ? '（' + em + '）' : ''), 'error');
+                return;
+            }
+            exRenderResult(imageResult, textResult);
+            const warn = [imageError && ('画像: ' + imageError), textError && ('テキスト: ' + textError)].filter(Boolean).join(' / ');
+            exStatus(warn ? ('一部だけ読み取れました（' + warn + '）') : '読み取り完了。下で内容を確認して反映してください', warn ? 'error' : 'ok');
+            document.getElementById('ex-result').scrollIntoView({ behavior: 'smooth', block: 'start' });
+        } catch (e) {
+            exStatus('エラー: ' + (e.message || e), 'error');
+        } finally {
+            btn.disabled = false;
+            btn.innerHTML = '🔍 解析する';
+        }
+    }
+
+    // ---- 結果の描画 ----
+    function exBadgeHtml(status, iv) {
+        if (status === 'match') return '<span class="text-[10px] font-bold px-1.5 py-0.5 rounded bg-green-100 text-green-700">一致</span>';
+        if (status === 'conflict') return '<span class="text-[10px] font-bold px-1.5 py-0.5 rounded bg-red-100 text-red-700">要確認</span>';
+        if (status === 'partial') { const src = (iv != null && String(iv).trim() !== '') ? '画像のみ' : 'テキストのみ'; return '<span class="text-[10px] font-bold px-1.5 py-0.5 rounded bg-blue-100 text-blue-700">' + src + '</span>'; }
+        return '<span class="text-[10px] font-bold px-1.5 py-0.5 rounded bg-gray-100 text-gray-400">なし</span>';
+    }
+
+    function exSourceBadge(source) {
+        const map = { both: ['一致', 'bg-green-100 text-green-700'], image: ['画像のみ', 'bg-blue-100 text-blue-700'], text: ['テキストのみ', 'bg-amber-100 text-amber-700'], conflict: ['要確認', 'bg-red-100 text-red-700'] };
+        const m = map[source] || ['', 'bg-gray-100 text-gray-400'];
+        return '<span class="text-[10px] font-bold px-1.5 py-0.5 rounded ' + m[1] + '">' + m[0] + '</span>';
+    }
+
+    function exRenderResult(img, text) {
+        img = img || {}; text = text || {};
+        exState.scalars = {};
+        const sc = document.getElementById('ex-scalars');
+        sc.innerHTML = '';
+        EX_SCALARS.forEach(f => {
+            const iv = (img[f.key] != null) ? img[f.key] : null;
+            const tv = (text[f.key] != null) ? text[f.key] : null;
+            const status = exCompareScalar(iv, tv);
+            const value = (iv != null && String(iv).trim() !== '') ? iv : ((tv != null && String(tv).trim() !== '') ? tv : '');
+            exState.scalars[f.key] = { value: value };
+            sc.appendChild(exScalarRow(f, iv, tv, status, value));
+        });
+        exState.bands = exMergeSimpleList(img.bands, text.bands);
+        exState.tickets = exMergeObjList(img.tickets, text.tickets, 'price');
+        exState.drinks = exMergeObjList(img.drinks, text.drinks, 'price');
+        exState.playguides = exMergeObjList(img.playguides, text.playguides, 'url');
+        exRenderArrays();
+        document.getElementById('ex-result').classList.remove('hidden');
+    }
+
+    function exScalarRow(f, iv, tv, status, value) {
+        const wrap = document.createElement('div');
+        const idAttr = 'exs-' + f.key;
+        const inputHtml = f.type === 'textarea'
+            ? '<textarea rows="2" id="' + idAttr + '" class="input-field resize-y" oninput="exState.scalars[\'' + f.key + '\'].value=this.value;exUpdateWarnings()">' + escapeHtml(value || '') + '</textarea>'
+            : '<input type="' + f.type + '" id="' + idAttr + '" class="input-field" value="' + escapeHtml(value || '') + '" oninput="exState.scalars[\'' + f.key + '\'].value=this.value;exUpdateWarnings()">';
+        let picker = '';
+        if (status === 'conflict') {
+            picker = '<div class="flex gap-2 mt-1 flex-wrap">'
+                + '<button type="button" class="text-xs px-2 py-1 rounded border border-blue-300 bg-blue-50 text-blue-700 hover:bg-blue-100" data-v="' + escapeHtml(String(iv)) + '" onclick="exPick(\'' + f.key + '\',this.dataset.v)">📷 ' + escapeHtml(String(iv)) + '</button>'
+                + '<button type="button" class="text-xs px-2 py-1 rounded border border-amber-300 bg-amber-50 text-amber-700 hover:bg-amber-100" data-v="' + escapeHtml(String(tv)) + '" onclick="exPick(\'' + f.key + '\',this.dataset.v)">📝 ' + escapeHtml(String(tv)) + '</button>'
+                + '</div>';
+        }
+        wrap.innerHTML = '<div class="flex items-center gap-2 mb-1"><span class="text-xs font-bold text-gray-600">' + escapeHtml(f.label) + '</span>' + exBadgeHtml(status, iv) + '</div>' + inputHtml + picker;
+        return wrap;
+    }
+
+    function exPick(key, v) {
+        const el = document.getElementById('exs-' + key);
+        if (el) el.value = v;
+        if (exState.scalars[key]) exState.scalars[key].value = v;
+        exUpdateWarnings();
+    }
+
+    function exRenderArrays() {
+        const c = document.getElementById('ex-arrays');
+        c.innerHTML = '';
+        c.appendChild(exBandSection());
+        c.appendChild(exPairSection('tickets', 'チケット', 'price', '種別（例: 前売）', '金額'));
+        c.appendChild(exPairSection('drinks', 'ドリンク', 'price', '種別（例: +1D）', '金額'));
+        c.appendChild(exPairSection('playguides', 'プレイガイド', 'url', '名前（例: e+）', 'URL'));
+        exUpdateWarnings();
+    }
+
+    // ---- 不足チェック（主要=赤 / 軽微=薄赤）----
+    function exCollectWarnings() {
+        const major = [], minor = [];
+        const sv = k => String((exState.scalars[k] && exState.scalars[k].value) || '').trim();
+        if (!sv('eventTitle')) major.push('イベントタイトル');
+        if (!sv('eventDate')) major.push('開催日');
+        if (!sv('eventPlace')) major.push('開催場所');
+        if (!sv('openTime')) minor.push('OPEN時刻が空です');
+        if (!sv('startTime')) minor.push('START時刻が空です');
+        if (!exState.bands.some(b => String(b.name || '').trim())) minor.push('出演者が1組も入っていません');
+        exState.tickets.forEach(t => {
+            if (String(t.name || '').trim() && (t.price == null || t.price === '')) minor.push('チケット「' + t.name + '」の金額がありません');
+        });
+        exState.drinks.forEach(d => {
+            if (String(d.name || '').trim() && (d.price == null || d.price === '')) minor.push('ドリンク「' + d.name + '」の金額がありません');
+        });
+        exState.playguides.forEach(p => {
+            if (String(p.name || '').trim() && !String(p.url || '').trim()) minor.push('プレイガイド「' + p.name + '」のURLがありません');
+        });
+        return { major, minor };
+    }
+
+    function exUpdateWarnings() {
+        const box = document.getElementById('ex-warnings');
+        if (!box) return;
+        const w = exCollectWarnings();
+        if (!w.major.length && !w.minor.length) { box.classList.add('hidden'); box.innerHTML = ''; return; }
+        let html = '';
+        if (w.major.length) {
+            html += '<div class="bg-red-600 rounded-lg px-3 py-2.5 text-xs text-white shadow-sm"><span class="font-bold">⚠ 主要情報が足りません: </span>'
+                + '<span class="font-bold">' + w.major.map(escapeHtml).join('・') + '</span><span class="text-red-100">　下の欄に直接入力してください</span></div>';
+        }
+        if (w.minor.length) {
+            html += '<div class="bg-red-50 border-2 border-red-300 rounded-lg px-3 py-2.5 text-xs text-red-700"><span class="font-bold text-red-600">⚠ 足りない項目: </span>'
+                + w.minor.map(escapeHtml).join(' ／ ') + '</div>';
+        }
+        box.innerHTML = html;
+        box.classList.remove('hidden');
+    }
+
+    let exBandDragIndex = null;
+    function exBandSection() {
+        const sec = document.createElement('div');
+        const rows = exState.bands.map((b, i) =>
+            '<div class="ex-band-row flex gap-1.5 items-center" data-i="' + i + '">'
+            + '<span class="ex-band-handle text-gray-300 select-none cursor-grab px-0.5" draggable="true" title="ドラッグで並べ替え">⠿</span>'
+            + '<span class="text-xs font-bold text-gray-400 w-4 text-center select-none">' + (i + 1) + '</span>'
+            + '<input type="text" class="input-field py-1 text-sm flex-1" value="' + escapeHtml(b.name || '') + '" oninput="exState.bands[' + i + '].name=this.value;exUpdateWarnings()">'
+            + exSourceBadge(b.source)
+            + '<button type="button" class="remove-btn text-xs" onclick="exState.bands.splice(' + i + ',1);exRenderArrays()">✕</button>'
+            + '</div>'
+        ).join('');
+        sec.innerHTML = '<div class="text-xs font-bold text-gray-600 mb-1">出演者（' + exState.bands.length + '組）<span class="font-normal text-gray-400">　⠿を掴んで出演順に並べ替え</span></div>'
+            + '<div class="space-y-1.5">' + rows + '</div>'
+            + '<button type="button" class="text-xs text-indigo-600 mt-1.5" onclick="exState.bands.push({name:\'\',source:\'\'});exRenderArrays()">＋ 出演者を追加</button>';
+        // ドラッグ並べ替え（つかみ手からだけ開始。入力欄と衝突させない）
+        sec.querySelectorAll('.ex-band-row').forEach(row => {
+            const i = +row.dataset.i;
+            const handle = row.querySelector('.ex-band-handle');
+            handle.addEventListener('dragstart', e => {
+                exBandDragIndex = i;
+                row.classList.add('opacity-50');
+                e.dataTransfer.effectAllowed = 'move';
+                try { e.dataTransfer.setData('text/plain', String(i)); } catch(_) {}
+            });
+            handle.addEventListener('dragend', () => {
+                exBandDragIndex = null;
+                document.querySelectorAll('.ex-band-row').forEach(r => r.classList.remove('opacity-50', 'ex-drop-target'));
+            });
+            row.addEventListener('dragover', e => {
+                if (exBandDragIndex === null) return;
+                e.preventDefault();
+                e.dataTransfer.dropEffect = 'move';
+                document.querySelectorAll('.ex-band-row').forEach(r => r.classList.remove('ex-drop-target'));
+                if (i !== exBandDragIndex) row.classList.add('ex-drop-target');
+            });
+            row.addEventListener('drop', e => {
+                e.preventDefault();
+                if (exBandDragIndex === null || i === exBandDragIndex) return;
+                const moved = exState.bands.splice(exBandDragIndex, 1)[0];
+                exState.bands.splice(i, 0, moved);
+                exBandDragIndex = null;
+                exRenderArrays();
+            });
+        });
+        return sec;
+    }
+
+    function exPairSection(kind, label, valueKey, namePh, valuePh) {
+        const arr = exState[kind];
+        const isPrice = valueKey === 'price';
+        const rows = arr.map((it, i) => {
+            const val = (it[valueKey] == null) ? '' : it[valueKey];
+            const valInput = isPrice
+                ? '<input type="number" class="input-field py-1 text-sm w-24" placeholder="' + valuePh + '" value="' + escapeHtml(String(val)) + '" oninput="exState.' + kind + '[' + i + '].' + valueKey + '=this.value===\'\'?null:Number(this.value);exUpdateWarnings()">'
+                : '<input type="text" class="input-field py-1 text-sm flex-1" placeholder="' + valuePh + '" value="' + escapeHtml(String(val)) + '" oninput="exState.' + kind + '[' + i + '].' + valueKey + '=this.value;exUpdateWarnings()">';
+            return '<div class="flex gap-1.5 items-center">'
+                + '<input type="text" class="input-field py-1 text-sm ' + (isPrice ? 'flex-1' : 'w-28') + '" placeholder="' + namePh + '" value="' + escapeHtml(it.name || '') + '" oninput="exState.' + kind + '[' + i + '].name=this.value;exUpdateWarnings()">'
+                + valInput
+                + exSourceBadge(it.source)
+                + '<button type="button" class="remove-btn text-xs" onclick="exState.' + kind + '.splice(' + i + ',1);exRenderArrays()">✕</button>'
+                + '</div>';
+        }).join('');
+        const pushObj = isPrice ? "{name:'',price:null,source:''}" : "{name:'',url:null,source:''}";
+        const sec = document.createElement('div');
+        sec.innerHTML = '<div class="text-xs font-bold text-gray-600 mb-1">' + label + '</div>'
+            + '<div class="space-y-1.5">' + rows + '</div>'
+            + '<button type="button" class="text-xs text-indigo-600 mt-1.5" onclick="exState.' + kind + '.push(' + pushObj + ');exRenderArrays()">＋ 追加</button>';
+        return sec;
+    }
+
+    // ---- 概要フォームへ反映 ----
+    function exApply() {
+        // 主要情報（タイトル・開催日・開催場所）が空のままなら、反映前に一度確認する
+        const w = exCollectWarnings();
+        if (w.major.length) {
+            if (!confirm('⚠ ' + w.major.join('・') + ' がまだ空です。\nこのまま反映しますか？（あとで概要作成フォームでも入力できます）')) return;
+        }
+        // スカラー（空欄は上書きしない）
+        EX_SCALARS.forEach(f => {
+            const v = exState.scalars[f.key] ? exState.scalars[f.key].value : '';
+            if (v != null && String(v).trim() !== '') setValIfExists(f.form, String(v));
+        });
+        // 出演者
+        const bandNames = exState.bands.map(b => String(b.name || '').trim()).filter(Boolean);
+        if (bandNames.length) {
+            const dp = +document.getElementById('defaultPlayTime').value || 30;
+            const dc = +document.getElementById('defaultChangeoverTime').value || 15;
+            const dr = +document.getElementById('defaultRehaTime').value || 30;
+            bands = bandNames.map(name => ({ _uid: newBandUid(), name, play: dp, change: dc, reha: dr }));
+            customRehaOrder = [];
+            renderBands(); renderRehaOrder(); updateCustomRehaUI();
+            // フライヤーの出演者名（プレースホルダーの枠だけ）と枚数を同期（他のフライヤー設定は触らない）
+            bands.forEach((b, i) => { if (i < 9) { const cur = flyerState.bands[i].name; if (!cur || /^出演者\d+$/.test(cur)) flyerState.bands[i].name = b.name; } });
+            const fc = document.getElementById('f-band-count'); if (fc) fc.value = Math.min(Math.max(bands.length, 1), 9);
+        }
+        // チケット / ドリンク
+        const tk = exState.tickets.map(t => ({ name: String(t.name || '').trim(), price: (t.price == null ? '' : Number(t.price)) })).filter(t => t.name);
+        if (tk.length) { tickets = tk; renderTickets(); }
+        const dk = exState.drinks.map(d => ({ name: String(d.name || '').trim(), price: (d.price == null ? '' : Number(d.price)) })).filter(d => d.name);
+        if (dk.length) { drinks = dk; renderDrinks(); }
+        // プレイガイド
+        const pg = exState.playguides.map(p => ({ name: String(p.name || '').trim(), url: String(p.url || '').trim() })).filter(p => p.name || p.url);
+        if (pg.length) { playguides = pg; renderPlayguides(); }
+        calculate();
+        try { saveStateToStorage(); } catch (_) {}
+        switchTab('overview');
+        showToast('フライヤーの内容を反映しました ✓');
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+
+    function exInit() {
+        exSetupImage();
+        try {
+            const k = localStorage.getItem(EX_APIKEY_STORAGE);
+            if (k) { document.getElementById('ex-apikey').value = k; document.getElementById('ex-remember').checked = true; }
+        } catch (_) {}
     }
 
     // ============================================================
@@ -3400,6 +3916,8 @@
         loadInputHistory();
         // localStorage からの復元（リスナー登録後に実行）
         loadStateFromStorage();
+        // フライヤーから読み取り機能の初期化
+        exInit();
     }
 
     window.onload = init;
