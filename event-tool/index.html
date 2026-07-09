@@ -985,6 +985,19 @@
             </h2>
             <p class="text-xs text-gray-500 mb-4 leading-relaxed">「概要作成」に入力したイベント情報から、SNS投稿用の告知文を組み立てます。生成された文章はたたき台です。下のテキスト欄で自由に手直ししてからコピーしてください。</p>
 
+            <!-- 共通オプション（全種別共通・既定ON） -->
+            <div class="mb-4 flex flex-wrap gap-x-5 gap-y-2">
+                <label class="flex items-center gap-1.5 text-sm text-gray-700 cursor-pointer">
+                    <input type="checkbox" id="sns-include-guides" checked onchange="snsRegenerate()"> プレイガイド情報を記載
+                </label>
+                <label class="flex items-center gap-1.5 text-sm text-gray-700 cursor-pointer">
+                    <input type="checkbox" id="sns-include-tt" checked onchange="snsRegenerate()"> タイムテーブルを記載<span class="text-xs text-gray-400">（開始時間）</span>
+                </label>
+                <label class="flex items-center gap-1.5 text-sm text-gray-700 cursor-pointer">
+                    <input type="checkbox" id="sns-emoji" checked onchange="snsRegenerate()"> 絵文字を使う
+                </label>
+            </div>
+
             <!-- 種別選択 -->
             <div class="mb-4">
                 <label class="input-label">告知の種類</label>
@@ -999,16 +1012,6 @@
                         <input type="radio" name="sns-type" value="countdown" onchange="snsRegenerate()"> 📢 カウントダウン
                     </label>
                 </div>
-            </div>
-
-            <!-- 記載オプション -->
-            <div class="mb-3 flex flex-wrap gap-x-5 gap-y-2">
-                <label class="flex items-center gap-1.5 text-sm text-gray-700 cursor-pointer">
-                    <input type="checkbox" id="sns-include-guides" onchange="snsRegenerate()"> プレイガイド情報を記載する
-                </label>
-                <label class="flex items-center gap-1.5 text-sm text-gray-700 cursor-pointer">
-                    <input type="checkbox" id="sns-include-tt" onchange="snsRegenerate()"> タイムテーブルを記載する<span class="text-xs text-gray-400">（出演者名の横に開始時間）</span>
-                </label>
             </div>
 
             <!-- チケット発売開始日時（プレイガイド記載ON かつ 告知解禁/カウントダウンのみ表示） -->
@@ -1622,9 +1625,10 @@
         return (list || []).filter(b => b.name).map(b => '・' + b.name).join('\n');
     }
 
-    function snsGuideLinesText(list) {
+    function snsGuideLinesText(list, emoji) {
+        const mark = (emoji === false) ? '' : '▶︎';
         return (list || []).filter(g => g.name || g.url)
-            .map(g => `▶︎ ${g.name}${g.url ? ' ' + g.url : ''}`).join('\n');
+            .map(g => `${mark}${g.name || ''}${g.url ? (g.name ? ' ' : '') + g.url : ''}`).join('\n');
     }
 
     /**
@@ -1635,48 +1639,50 @@
      */
     function buildAnnounceText(type, ov, countdownDays, opts) {
         opts = opts || {};
+        const emoji = opts.emoji !== false;   // 絵文字を使うか
+        const em = s => emoji ? s : '';        // 絵文字（OFFなら空文字）
         const title = ov.eventTitle || '';
         const date = snsFormatDateJP(ov.eventDate);
         const place = ov.eventPlace || '';
         const open = ov.openTime || '';
         const start = ov.startTime || '';
-        // タイムテーブル記載ON: 出演者名の横に（開始時間）を付ける
-        const bandLines = opts.ttTimes
-            ? (ov.bands || []).map((b, i) => b.name && ('・' + b.name + (opts.ttTimes[i] ? `（${opts.ttTimes[i]}）` : ''))).filter(Boolean).join('\n')
-            : snsBandLinesText(ov.bands);
+        // 出演者（文頭の・は付けない）。TT記載ONなら名前の横に（開始時間）
+        const bandLines = (ov.bands || [])
+            .map((b, i) => b.name && (b.name + (opts.ttTimes && opts.ttTimes[i] ? `（${opts.ttTimes[i]}）` : '')))
+            .filter(Boolean).join('\n');
         // チケット代（値段）は常に記載。プレイガイドはチェックONのときだけ記載
         const ticketLine = snsTicketLineText(ov.tickets);
-        const guideLines = snsGuideLinesText(ov.playguides);
+        const guideLines = snsGuideLinesText(ov.playguides, emoji);
         const timeLine = [open && `OPEN ${open}`, start && `START ${start}`].filter(Boolean).join(' / ');
         const cd = (countdownDays != null && countdownDays !== '') ? countdownDays : '';
 
         const header = {
-            release: '🔥LIVE INFORMATION🔥',
-            onsale: '🎫チケット発売開始🎫',
-            countdown: `📢イベントまであと${cd}日📢`,
+            release: `${em('🔥')}LIVE INFORMATION${em('🔥')}`,
+            onsale: `${em('🎫')}チケット発売開始${em('🎫')}`,
+            countdown: `${em('📢')}イベントまであと${cd}日${em('📢')}`,
         }[type];
         const footer = {
             release: '告知解禁！詳細は追って発表します。',
-            onsale: 'チケット発売開始しました🎫',
+            onsale: `チケット発売開始しました${em('🎫')}`,
             countdown: `あと${cd}日、お楽しみに！`,
         }[type];
 
         const lines = [
             header, '',
             title && `『${title}』`, '',
-            date && `📅 ${date}`,
-            place && `📍 ${place}`,
+            date && `${em('📅')}${date}`,
+            place && `${em('📍')}${place}`,
             '',
         ];
-        if (bandLines) lines.push('🎸 出演', bandLines, '');
-        if (timeLine) lines.push(`⏰ ${timeLine}`, '');
-        if (ticketLine) lines.push(`🎫 ${ticketLine}`);
-        // プレイガイド情報（チェックONのとき）。告知解禁/カウントダウンは発売開始日時をその前に付ける
+        if (bandLines) lines.push(`${em('🎸')}出演`, bandLines, '');
+        if (timeLine) lines.push(`${em('⏰')}${timeLine}`, '');
+        if (ticketLine) lines.push(`${em('🎫')}${ticketLine}`);
+        // プレイガイド情報（チェックONのとき）。告知解禁のみ発売開始日時をその前に付ける
         if (opts.includeGuides) {
             const guideBlock = [];
-            if (type !== 'onsale' && opts.onsaleDateTime) {
+            if (type === 'release' && opts.onsaleDateTime) {
                 const dt = snsFormatDateTimeJP(opts.onsaleDateTime);
-                if (dt) guideBlock.push(`🗓 ${dt}〜 発売`);
+                if (dt) guideBlock.push(`${em('🗓')}${dt}〜発売`);
             }
             if (guideLines) guideBlock.push(guideLines);
             if (guideBlock.length) lines.push('', guideBlock.join('\n'));
@@ -1722,9 +1728,10 @@
         if (cdWrap) cdWrap.classList.toggle('hidden', type !== 'countdown');
         const includeGuides = !!(document.getElementById('sns-include-guides') && document.getElementById('sns-include-guides').checked);
         const includeTT = !!(document.getElementById('sns-include-tt') && document.getElementById('sns-include-tt').checked);
-        // 「チケット発売開始日時」欄は、プレイガイド記載ON かつ 告知解禁/カウントダウン のときだけ表示（発売開始種別は日時不要）
+        const emoji = !!(document.getElementById('sns-emoji') && document.getElementById('sns-emoji').checked);
+        // 「チケット発売開始日時」欄は、プレイガイド記載ON かつ 告知解禁 のときだけ表示
         const onsaleWrap = document.getElementById('sns-onsale-wrap');
-        if (onsaleWrap) onsaleWrap.classList.toggle('hidden', !(includeGuides && type !== 'onsale'));
+        if (onsaleWrap) onsaleWrap.classList.toggle('hidden', !(includeGuides && type === 'release'));
         const onsaleDateTime = document.getElementById('sns-onsale-dt') ? document.getElementById('sns-onsale-dt').value : '';
         // タイムテーブル記載ON: calculate()の計算結果から出演者ごとの開始時間を拾う
         let ttTimes = null;
@@ -1738,7 +1745,7 @@
         snsUpdateGuideWarn(includeGuides, type, onsaleDateTime);
         const days = document.getElementById('sns-countdown-days') ? document.getElementById('sns-countdown-days').value : '';
         const out = document.getElementById('sns-output');
-        if (out) out.value = buildAnnounceText(type, snsCollectOverview(), days, { includeGuides, onsaleDateTime, ttTimes });
+        if (out) out.value = buildAnnounceText(type, snsCollectOverview(), days, { includeGuides, onsaleDateTime, ttTimes, emoji });
     }
 
     // プレイガイド記載ON時、情報の不備を赤アラートで表示
@@ -1757,7 +1764,7 @@
                 else if (!n && u) warns.push('URLはありますが、プレイガイド名がありません');
             });
         }
-        if (type !== 'onsale' && !onsaleDateTime) warns.push('チケット発売開始日時が未設定です（任意）');
+        if (type === 'release' && !onsaleDateTime) warns.push('チケット発売開始日時が未設定です（任意）');
         if (!warns.length) { box.classList.add('hidden'); box.innerHTML = ''; return; }
         box.innerHTML = '<div class="bg-red-50 border-2 border-red-300 rounded-lg px-3 py-2.5 text-xs text-red-700"><span class="font-bold text-red-600">⚠ プレイガイド情報の確認: </span>' + warns.map(escapeHtml).join(' ／ ') + '</div>';
         box.classList.remove('hidden');
