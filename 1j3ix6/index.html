@@ -1014,7 +1014,7 @@
             <div id="sns-onsale-wrap" class="hidden mb-3 bg-gray-50 border border-gray-200 rounded-lg p-3">
                 <label class="input-label">チケット発売開始日時（任意）</label>
                 <input type="datetime-local" id="sns-onsale-dt" class="input-field" oninput="snsRegenerate()">
-                <p class="text-[11px] text-gray-400 mt-1">プレイガイド情報の前に「◯/◯(◯) ◯◯:◯◯〜 発売」と入ります。空欄なら省略されます。</p>
+                <p class="text-[11px] text-gray-400 mt-1">プレイガイド情報の前に「◯/◯(◯) ◯◯:◯◯〜 発売開始」と入ります。空欄なら省略されます。</p>
             </div>
 
             <!-- プレイガイド情報の不備アラート -->
@@ -1585,6 +1585,7 @@
             .filter(Boolean).join('\n');
         // チケット代（値段）は常に記載。プレイガイドはチェックONのときだけ記載
         const ticketLine = snsTicketLineText(ov.tickets);
+        const drinkLine = snsTicketLineText(ov.drinks);
         const guideLines = snsGuideLinesText(ov.playguides, emoji);
         const timeLine = [open && `OPEN ${open}`, start && `START ${start}`].filter(Boolean).join(' / ');
         const cd = (countdownDays != null && countdownDays !== '') ? countdownDays : '';
@@ -1610,12 +1611,13 @@
         if (bandLines) lines.push(`${em('🎸')}出演`, bandLines, '');
         if (timeLine) lines.push(`${em('⏰')}${timeLine}`, '');
         if (ticketLine) lines.push(`${em('🎫')}${ticketLine}`);
+        if (drinkLine) lines.push(`${em('🥤')}${drinkLine}`);
         // プレイガイド情報（チェックONのとき）。告知解禁のみ発売開始日時をその前に付ける
         if (opts.includeGuides) {
             const guideBlock = [];
             if (type === 'release' && opts.onsaleDateTime) {
                 const dt = snsFormatDateTimeJP(opts.onsaleDateTime);
-                if (dt) guideBlock.push(`${em('🗓')}${dt}〜発売`);
+                if (dt) guideBlock.push(`${em('🗓')}${dt}〜発売開始`);
             }
             if (guideLines) guideBlock.push(guideLines);
             if (guideBlock.length) lines.push('', guideBlock.join('\n'));
@@ -1636,6 +1638,7 @@
             startTime: getVal('startTime'),
             bands: bands,
             tickets: tickets,
+            drinks: drinks,
             playguides: playguides,
         };
     }
