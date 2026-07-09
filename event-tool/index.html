@@ -1718,6 +1718,13 @@
         const days = snsDaysUntil(ov.eventDate);
         const input = document.getElementById('sns-countdown-days');
         if (input) input.value = (days === '' ? '' : Math.max(0, days));
+        // チケット発売開始日時の初期値: 空なら今日の日付＋10:00（日付はユーザーが選び直す前提、時刻10:00をデフォに）
+        const dt = document.getElementById('sns-onsale-dt');
+        if (dt && !dt.value) {
+            const n = new Date();
+            const p = x => String(x).padStart(2, '0');
+            dt.value = `${n.getFullYear()}-${p(n.getMonth() + 1)}-${p(n.getDate())}T10:00`;
+        }
         snsRegenerate();
     }
 
@@ -1739,7 +1746,7 @@
             if (!printSheetData) calculate();
             if (printSheetData) {
                 const evs = printSheetData.ttEvents.filter(e => e.start != null);
-                ttTimes = bands.map((b, i) => evs[i] ? minutesToTime(evs[i].start) : '');
+                ttTimes = bands.map((b, i) => evs[i] ? (minutesToTime(evs[i].start) + '〜') : '');
             }
         }
         snsUpdateGuideWarn(includeGuides, type, onsaleDateTime);
