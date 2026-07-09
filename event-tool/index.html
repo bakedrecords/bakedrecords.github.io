@@ -1001,6 +1001,16 @@
                 </div>
             </div>
 
+            <!-- 記載オプション -->
+            <div class="mb-4 flex flex-wrap gap-x-5 gap-y-2">
+                <label id="sns-tickets-wrap" class="flex items-center gap-1.5 text-sm text-gray-700 cursor-pointer">
+                    <input type="checkbox" id="sns-include-tickets" onchange="snsRegenerate()"> チケット情報を記載する
+                </label>
+                <label class="flex items-center gap-1.5 text-sm text-gray-700 cursor-pointer">
+                    <input type="checkbox" id="sns-include-tt" onchange="snsRegenerate()"> タイムテーブルを記載する<span class="text-xs text-gray-400">（出演者名の横に時間）</span>
+                </label>
+            </div>
+
             <!-- カウントダウンの残り日数（カウントダウン選択時のみ表示） -->
             <div id="sns-countdown-wrap" class="hidden mb-4 bg-gray-50 border border-gray-200 rounded-lg p-3">
                 <label class="input-label">イベントまでの残り日数</label>
@@ -1601,15 +1611,22 @@
      * @param {'release'|'onsale'|'countdown'} type
      * @param {object} ov - overview相当のオブジェクト
      * @param {number|string} [countdownDays] - type==='countdown' のときの残り日数
+     * @param {object} [opts] - { includeTickets: 告知解禁でもチケット情報を載せる, ttTimes: 出演者ごとの時間文字列の配列(タイムテーブル記載ON時) }
      */
-    function buildAnnounceText(type, ov, countdownDays) {
+    function buildAnnounceText(type, ov, countdownDays, opts) {
+        opts = opts || {};
         const title = ov.eventTitle || '';
         const date = snsFormatDateJP(ov.eventDate);
         const place = ov.eventPlace || '';
         const open = ov.openTime || '';
         const start = ov.startTime || '';
-        const bandLines = snsBandLinesText(ov.bands);
-        const ticketLine = snsTicketLineText(ov.tickets);
+        // タイムテーブル記載ON: 出演者名の横に（開始〜終了）を付ける
+        const bandLines = opts.ttTimes
+            ? (ov.bands || []).map((b, i) => b.name && ('・' + b.name + (opts.ttTimes[i] ? `（${opts.ttTimes[i]}）` : ''))).filter(Boolean).join('\n')
+            : snsBandLinesText(ov.bands);
+        // 告知解禁はチェックONのときだけチケット情報を載せる（他の種別は常に載せる）
+        const showTickets = (type === 'release') ? !!opts.includeTickets : true;
+        const ticketLine = showTickets ? snsTicketLineText(ov.tickets) : '';
         const guideLines = snsGuideLinesText(ov.playguides);
         const timeLine = [open && `OPEN ${open}`, start && `START ${start}`].filter(Boolean).join(' / ');
         const cd = (countdownDays != null && countdownDays !== '') ? countdownDays : '';
@@ -1670,14 +1687,28 @@
         snsRegenerate();
     }
 
-    // 種別・日数が変わったとき: 表示切替と再生成
+    // 種別・日数・記載オプションが変わったとき: 表示切替と再生成
     function snsRegenerate() {
         const type = snsSelectedType();
         const cdWrap = document.getElementById('sns-countdown-wrap');
         if (cdWrap) cdWrap.classList.toggle('hidden', type !== 'countdown');
+        // 「チケット情報を記載する」チェックは告知解禁のときだけ表示（他の種別は常に記載）
+        const tkWrap = document.getElementById('sns-tickets-wrap');
+        if (tkWrap) tkWrap.style.display = (type === 'release') ? '' : 'none';
+        const includeTickets = !!(document.getElementById('sns-include-tickets') && document.getElementById('sns-include-tickets').checked);
+        const includeTT = !!(document.getElementById('sns-include-tt') && document.getElementById('sns-include-tt').checked);
+        // タイムテーブル記載ON: calculate()の計算結果から出演者ごとの時間を拾う
+        let ttTimes = null;
+        if (includeTT) {
+            if (!printSheetData) calculate();
+            if (printSheetData) {
+                const evs = printSheetData.ttEvents.filter(e => e.start != null);
+                ttTimes = bands.map((b, i) => evs[i] ? (minutesToTime(evs[i].start) + '〜' + minutesToTime(evs[i].end)) : '');
+            }
+        }
         const days = document.getElementById('sns-countdown-days') ? document.getElementById('sns-countdown-days').value : '';
         const out = document.getElementById('sns-output');
-        if (out) out.value = buildAnnounceText(type, snsCollectOverview(), days);
+        if (out) out.value = buildAnnounceText(type, snsCollectOverview(), days, { includeTickets, ttTimes });
     }
 
     function snsCopy() {
