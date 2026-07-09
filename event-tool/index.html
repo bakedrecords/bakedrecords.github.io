@@ -165,11 +165,12 @@
     </header>
 
     <!-- タブナビ -->
-    <div class="px-4 pt-3 bg-gray-100 flex gap-1">
+    <div class="px-4 pt-3 bg-gray-100 flex flex-wrap gap-1">
         <button class="tab-btn active" id="tab-overview" onclick="switchTab('overview')">📝 概要作成</button>
         <button class="tab-btn" id="tab-print" onclick="switchTab('print')">📄 印刷用PDF</button>
         <button class="tab-btn" id="tab-flyer" onclick="switchTab('flyer')">🖼 フライヤー作成</button>
         <button class="tab-btn" id="tab-extract" onclick="switchTab('extract')">🔍 フライヤーから読み取り</button>
+        <button class="tab-btn" id="tab-sns" onclick="switchTab('sns')">📣 SNS告知文</button>
     </div>
 
     <!-- ========== TAB: 概要作成 ========== -->
@@ -976,6 +977,51 @@
         </section>
     </div>
 
+    <!-- ========== TAB: SNS告知文 ========== -->
+    <div id="panel-sns" class="hidden max-w-3xl mx-auto p-4 md:p-8 space-y-5">
+        <section class="section-card border-l-4 border-sky-500">
+            <h2 class="text-base font-bold text-gray-800 mb-1 flex items-center">
+                <span class="bg-sky-100 text-sky-700 px-2 py-0.5 rounded mr-2 text-xs font-bold">SNS</span> SNS告知文作成
+            </h2>
+            <p class="text-xs text-gray-500 mb-4 leading-relaxed">「概要作成」に入力したイベント情報から、SNS投稿用の告知文を組み立てます。生成された文章はたたき台です。下のテキスト欄で自由に手直ししてからコピーしてください。</p>
+
+            <!-- 種別選択 -->
+            <div class="mb-4">
+                <label class="input-label">告知の種類</label>
+                <div class="flex flex-wrap gap-2">
+                    <label class="flex items-center gap-1.5 text-sm border border-gray-300 rounded-lg px-3 py-1.5 cursor-pointer has-[:checked]:border-sky-500 has-[:checked]:bg-sky-50 has-[:checked]:text-sky-700 has-[:checked]:font-bold">
+                        <input type="radio" name="sns-type" value="release" checked onchange="snsRegenerate()"> 🔥 告知解禁
+                    </label>
+                    <label class="flex items-center gap-1.5 text-sm border border-gray-300 rounded-lg px-3 py-1.5 cursor-pointer has-[:checked]:border-sky-500 has-[:checked]:bg-sky-50 has-[:checked]:text-sky-700 has-[:checked]:font-bold">
+                        <input type="radio" name="sns-type" value="onsale" onchange="snsRegenerate()"> 🎫 チケット発売
+                    </label>
+                    <label class="flex items-center gap-1.5 text-sm border border-gray-300 rounded-lg px-3 py-1.5 cursor-pointer has-[:checked]:border-sky-500 has-[:checked]:bg-sky-50 has-[:checked]:text-sky-700 has-[:checked]:font-bold">
+                        <input type="radio" name="sns-type" value="countdown" onchange="snsRegenerate()"> 📢 カウントダウン
+                    </label>
+                </div>
+            </div>
+
+            <!-- カウントダウンの残り日数（カウントダウン選択時のみ表示） -->
+            <div id="sns-countdown-wrap" class="hidden mb-4 bg-gray-50 border border-gray-200 rounded-lg p-3">
+                <label class="input-label">イベントまでの残り日数</label>
+                <div class="flex items-center gap-2">
+                    <input type="number" id="sns-countdown-days" class="input-field w-24 text-center" min="0" oninput="snsRegenerate()">
+                    <span class="text-sm text-gray-600">日</span>
+                    <span class="text-xs text-gray-400">（開催日から自動計算。手動で変えられます）</span>
+                </div>
+            </div>
+
+            <!-- プレビュー（編集可能） -->
+            <div class="mb-3">
+                <label class="input-label">告知文（自由に手直しできます）</label>
+                <textarea id="sns-output" rows="16" class="input-field resize-y font-mono text-sm leading-relaxed"></textarea>
+                <p class="text-[11px] text-gray-400 mt-1">※ 種類を切り替えたり、このタブを開き直すと、イベント情報から作り直されます（手直し分は消えます）。手直し後はそのままコピーしてください。</p>
+            </div>
+
+            <button type="button" onclick="snsCopy()" class="w-full bg-sky-600 hover:bg-sky-700 text-white font-bold py-2.5 rounded-lg transition">📋 コピーする</button>
+        </section>
+    </div>
+
     <script>
     // ============================================================
     // 概要ジェネレーター: データ
@@ -1021,20 +1067,24 @@
         const flyerPanel = document.getElementById('panel-flyer');
         const printPanel = document.getElementById('panel-print');
         const extractPanel = document.getElementById('panel-extract');
+        const snsPanel = document.getElementById('panel-sns');
         const tabOv = document.getElementById('tab-overview');
         const tabFl = document.getElementById('tab-flyer');
         const tabPr = document.getElementById('tab-print');
         const tabEx = document.getElementById('tab-extract');
+        const tabSn = document.getElementById('tab-sns');
 
         // 全て非表示＆非アクティブに
         overviewPanel.classList.add('hidden');
         flyerPanel.style.display = 'none';
         printPanel.classList.add('hidden');
         if (extractPanel) extractPanel.classList.add('hidden');
+        if (snsPanel) snsPanel.classList.add('hidden');
         tabOv.classList.remove('active');
         tabFl.classList.remove('active');
         tabPr.classList.remove('active');
         if (tabEx) tabEx.classList.remove('active');
+        if (tabSn) tabSn.classList.remove('active');
 
         if (tab === 'overview') {
             overviewPanel.classList.remove('hidden');
@@ -1051,6 +1101,10 @@
         } else if (tab === 'extract') {
             if (extractPanel) extractPanel.classList.remove('hidden');
             if (tabEx) tabEx.classList.add('active');
+        } else if (tab === 'sns') {
+            if (snsPanel) snsPanel.classList.remove('hidden');
+            if (tabSn) tabSn.classList.add('active');
+            snsOpenTab();
         }
     }
 
@@ -1504,6 +1558,139 @@
             const k = localStorage.getItem(EX_APIKEY_STORAGE);
             if (k) { document.getElementById('ex-apikey').value = k; document.getElementById('ex-remember').checked = true; }
         } catch (_) {}
+    }
+
+    // ============================================================
+    // SNS告知文作成（固定テンプレート・外部通信なし）
+    //   概要作成のイベント情報から「告知解禁 / チケット発売 / カウントダウン」の投稿文を組み立てる
+    // ============================================================
+    const SNS_WEEKDAYS_JP = ['日','月','火','水','木','金','土'];
+
+    function snsFormatDateJP(dateStr) {
+        if (!dateStr) return '';
+        const d = new Date(dateStr + 'T00:00:00Z');
+        if (isNaN(d)) return dateStr;
+        return `${d.getUTCMonth()+1}/${d.getUTCDate()}(${SNS_WEEKDAYS_JP[d.getUTCDay()]})`;
+    }
+
+    // eventDateからの残り日数（カウントダウン欄のデフォルト値計算に使う）
+    function snsDaysUntil(dateStr) {
+        const target = new Date(dateStr + 'T00:00:00Z');
+        if (isNaN(target)) return '';
+        const now = new Date();
+        const todayUTC = new Date(Date.UTC(now.getFullYear(), now.getMonth(), now.getDate()));
+        return Math.round((target - todayUTC) / 86400000);
+    }
+
+    function snsTicketLineText(list) {
+        return (list || []).filter(t => t.name)
+            .map(t => (t.price != null && t.price !== '') ? `${t.name} ¥${Number(t.price).toLocaleString()}` : t.name)
+            .join(' / ');
+    }
+
+    function snsBandLinesText(list) {
+        return (list || []).filter(b => b.name).map(b => '・' + b.name).join('\n');
+    }
+
+    function snsGuideLinesText(list) {
+        return (list || []).filter(g => g.name || g.url)
+            .map(g => `▶︎ ${g.name}${g.url ? ' ' + g.url : ''}`).join('\n');
+    }
+
+    /**
+     * @param {'release'|'onsale'|'countdown'} type
+     * @param {object} ov - overview相当のオブジェクト
+     * @param {number|string} [countdownDays] - type==='countdown' のときの残り日数
+     */
+    function buildAnnounceText(type, ov, countdownDays) {
+        const title = ov.eventTitle || '';
+        const date = snsFormatDateJP(ov.eventDate);
+        const place = ov.eventPlace || '';
+        const open = ov.openTime || '';
+        const start = ov.startTime || '';
+        const bandLines = snsBandLinesText(ov.bands);
+        const ticketLine = snsTicketLineText(ov.tickets);
+        const guideLines = snsGuideLinesText(ov.playguides);
+        const timeLine = [open && `OPEN ${open}`, start && `START ${start}`].filter(Boolean).join(' / ');
+        const cd = (countdownDays != null && countdownDays !== '') ? countdownDays : '';
+
+        const header = {
+            release: '🔥LIVE INFORMATION🔥',
+            onsale: '🎫チケット発売中🎫',
+            countdown: `📢イベントまであと${cd}日📢`,
+        }[type];
+        const footer = {
+            release: '告知解禁！詳細は追って発表します。',
+            onsale: 'チケット好評発売中！お早めにどうぞ。',
+            countdown: `あと${cd}日、お楽しみに！`,
+        }[type];
+
+        const lines = [
+            header, '',
+            title && `『${title}』`, '',
+            date && `📅 ${date}`,
+            place && `📍 ${place}`,
+            '',
+        ];
+        if (bandLines) lines.push('🎸 出演', bandLines, '');
+        if (timeLine) lines.push(`⏰ ${timeLine}`, '');
+        if (ticketLine) lines.push(`🎫 ${ticketLine}`);
+        if (type === 'onsale' && guideLines) lines.push('', guideLines);
+        lines.push('', footer);
+
+        return lines.filter(l => l !== undefined && l !== false).join('\n').replace(/\n{3,}/g, '\n\n').trim();
+    }
+
+    // 概要作成の入力からoverview相当を集める（外部送信はしない）
+    function snsCollectOverview() {
+        const getVal = id => { const el = document.getElementById(id); return el ? el.value : ''; };
+        return {
+            eventTitle: getVal('eventTitle'),
+            eventDate: getVal('eventDate'),
+            eventPlace: getVal('eventPlace'),
+            openTime: getVal('openTime'),
+            startTime: getVal('startTime'),
+            bands: bands,
+            tickets: tickets,
+            playguides: playguides,
+        };
+    }
+
+    function snsSelectedType() {
+        const el = document.querySelector('input[name="sns-type"]:checked');
+        return el ? el.value : 'release';
+    }
+
+    // タブを開いたとき: 残り日数を開催日から計算し直して生成
+    function snsOpenTab() {
+        const ov = snsCollectOverview();
+        const days = snsDaysUntil(ov.eventDate);
+        const input = document.getElementById('sns-countdown-days');
+        if (input) input.value = (days === '' ? '' : Math.max(0, days));
+        snsRegenerate();
+    }
+
+    // 種別・日数が変わったとき: 表示切替と再生成
+    function snsRegenerate() {
+        const type = snsSelectedType();
+        const cdWrap = document.getElementById('sns-countdown-wrap');
+        if (cdWrap) cdWrap.classList.toggle('hidden', type !== 'countdown');
+        const days = document.getElementById('sns-countdown-days') ? document.getElementById('sns-countdown-days').value : '';
+        const out = document.getElementById('sns-output');
+        if (out) out.value = buildAnnounceText(type, snsCollectOverview(), days);
+    }
+
+    function snsCopy() {
+        const ta = document.getElementById('sns-output');
+        if (!ta || !ta.value.trim()) { showToast('コピーする告知文がありません', 'error'); return; }
+        if (navigator.clipboard) {
+            navigator.clipboard.writeText(ta.value)
+                .then(() => showToast('告知文をコピーしました ✓'))
+                .catch(() => { ta.select(); document.execCommand('copy'); showToast('告知文をコピーしました ✓'); });
+        } else {
+            ta.select(); document.execCommand('copy');
+            showToast('告知文をコピーしました ✓');
+        }
     }
 
     // ============================================================
