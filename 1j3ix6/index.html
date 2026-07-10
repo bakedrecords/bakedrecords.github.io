@@ -1033,7 +1033,8 @@
             <!-- プレビュー（編集可能） -->
             <div class="mb-3">
                 <label class="input-label">告知文（自由に手直しできます）</label>
-                <textarea id="sns-output" rows="16" class="input-field resize-y font-mono text-sm leading-relaxed"></textarea>
+                <textarea id="sns-output" rows="16" class="input-field resize-y font-mono text-sm leading-relaxed" oninput="snsUpdateCount()"></textarea>
+                <div id="sns-count" class="text-xs font-bold mt-1.5"></div>
                 <p class="text-[11px] text-gray-400 mt-1">※ 種類を切り替えたり、このタブを開き直すと、イベント情報から作り直されます（手直し分は消えます）。手直し後はそのままコピーしてください。</p>
             </div>
 
@@ -1689,6 +1690,7 @@
         const days = document.getElementById('sns-countdown-days') ? document.getElementById('sns-countdown-days').value : '';
         const out = document.getElementById('sns-output');
         if (out) out.value = buildAnnounceText(type, snsCollectOverview(), days, { includeGuides, onsaleDateTime, ttTimes, emoji });
+        snsUpdateCount();
     }
 
     // プレイガイド記載ON時、情報の不備を赤アラートで表示
@@ -1711,6 +1713,41 @@
         if (!warns.length) { box.classList.add('hidden'); box.innerHTML = ''; return; }
         box.innerHTML = '<div class="bg-red-50 border-2 border-red-300 rounded-lg px-3 py-2.5 text-xs text-red-700"><span class="font-bold text-red-600">⚠ プレイガイド情報の確認: </span>' + warns.map(escapeHtml).join(' ／ ') + '</div>';
         box.classList.remove('hidden');
+    }
+
+    // X（Twitter）の重み付き文字数を数える（日本語・絵文字などは2、URLはt.co短縮で23固定）
+    function snsXWeightedLength(text) {
+        const urlRe = /https?:\/\/[^\s]+/g;
+        const urls = text.match(urlRe) || [];
+        let count = urls.length * 23;
+        const rest = text.replace(urlRe, '');
+        for (const ch of rest) {
+            const cp = ch.codePointAt(0);
+            // twitter-text の重み1の範囲（ラテン・記号など）。それ以外（CJK・絵文字・全角）は2
+            if (cp <= 0x10FF || (cp >= 0x2000 && cp <= 0x200D) || (cp >= 0x2010 && cp <= 0x201F) || (cp >= 0x2032 && cp <= 0x2037)) {
+                count += 1;
+            } else {
+                count += 2;
+            }
+        }
+        return count;
+    }
+
+    // 文字数カウント表示を更新（X基準280字）
+    function snsUpdateCount() {
+        const el = document.getElementById('sns-count');
+        const ta = document.getElementById('sns-output');
+        if (!el || !ta) return;
+        const text = ta.value;
+        const chars = [...text].length;
+        const x = snsXWeightedLength(text);
+        const limit = 280;
+        const over = x > limit;
+        el.innerHTML = 'X（Twitter）: <span class="' + (over ? 'text-red-600' : 'text-green-600') + '">' + x + ' / ' + limit + '</span>'
+            + (over
+                ? ' <span class="text-red-600">（' + (x - limit) + '字オーバー。このままでは投稿できません）</span>'
+                : ' <span class="text-green-600">そのまま投稿できます</span>')
+            + ' <span class="text-gray-400 font-normal">／ 実' + chars + '文字</span>';
     }
 
     function snsCopy() {
