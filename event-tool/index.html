@@ -1812,7 +1812,7 @@
         const over = x > limit;
         el.innerHTML = 'X（Twitter）: <span class="' + (over ? 'text-red-600' : 'text-green-600') + '">' + x + ' / ' + limit + '</span>'
             + (over
-                ? ' <span class="text-red-600">（' + (x - limit) + '字オーバー。このままでは投稿できません）</span>'
+                ? ' <span class="text-red-600">（' + (x - limit) + '字オーバー）</span>'
                 : ' <span class="text-green-600">そのまま投稿できます</span>')
             + ' <span class="text-gray-400 font-normal">／ 実' + chars + '文字</span>';
     }
