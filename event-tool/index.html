@@ -2232,7 +2232,8 @@
             let formattedDate = '';
             if (dateVal) {
                 const d = new Date(dateVal + 'T00:00:00');
-                formattedDate = `${d.getFullYear()}/${d.getMonth()+1}/${d.getDate()}`;
+                const wd = ['日','月','火','水','木','金','土'][d.getDay()];
+                formattedDate = `${d.getFullYear()}/${d.getMonth()+1}/${d.getDate()}(${wd})`;
             }
             const title = document.getElementById('eventTitle').value;
             const place = document.getElementById('eventPlace').value;
