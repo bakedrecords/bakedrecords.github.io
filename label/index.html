@@ -244,6 +244,9 @@
   .fit-warning { display: none; background: #fdecec; border: 1px solid #e3a3a3; color: #8a1c1c; border-radius: 8px; padding: 8px 12px; font-size: 13px; line-height: 1.6; margin-bottom: 10px; }
   .fit-warning.show { display: block; }
   .fit-warning.note { background: #fff8e6; border-color: #e6cf8a; color: #6b4e00; } /* 目安未満の縮小だけ（入りきらない商品なし）*/
+  .fit-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 16px; margin-top: 8px; padding-top: 8px; border-top: 1px dashed rgba(0,0,0,.18); }
+  .fit-actions-label { font-weight: 600; width: 100%; }
+  .fit-actions label { display: inline-flex; align-items: center; gap: 5px; cursor: pointer; }
 
   /* 設定画面 */
   .sm-list { display: flex; flex-direction: column; gap: 6px; margin-bottom: 12px; }
@@ -354,14 +357,6 @@
                 <span id="makerDisplay" class="hint"></span>
               </div>
               <p class="hint" style="margin-top:4px;">変更は「設定」画面で行えます（全シール共通）。</p>
-            </div>
-            <div class="field">
-              <label>入りきらない時の詰め方（足りない時だけ自動で適用）</label>
-              <div class="radio-row" id="compactRow">
-                <label><input type="checkbox" id="compactExpiryStorage" onchange="onCompactChange()"> 賞味期限と保存方法を1行にまとめる</label>
-                <label><input type="checkbox" id="compactMaker" onchange="onCompactChange()"> 製造者（名称・住所）を1行にする</label>
-              </div>
-              <p class="hint" style="margin-top:6px;">標準の配置で入りきらないシールだけ、ここで選んだ詰め方を先に使い、それでも入らなければ文字を小さくします（入るシールはそのまま）。</p>
             </div>
             <div class="field">
               <label>上から何枚スキップするか（使いかけの用紙用）</label>
@@ -989,7 +984,6 @@ function syncCompactControls() {
     const inp = document.getElementById(id);
     if (!inp) return;
     inp.checked = on;
-    inp.closest('label').classList.toggle('sel', on);
   });
 }
 function onCompactChange() {
@@ -1174,6 +1168,14 @@ function renderFitWarning(names, smallNames, compactNames) {
       `ℹ️ 文字を ${SEAL_FONT_GUIDE_PT}pt 未満に縮小した商品：${smallNames.map(esc).join('、')}` +
       `<span class="hint">（食品表示基準の目安は ${SEAL_FONT_GUIDE_PT}pt 以上。読みにくければ原材料を短くするか、大きい用紙を）</span>`;
   }
+  // 詰め方の on/off をこの案内の中に置く（店側の判断で切り替え。チェックすると文字が元の大きさに戻ることがある）
+  const cc = layout.compact || {};
+  const expiryLabelNow = (layout.expiry && layout.expiry.label) || '賞味期限';
+  html += `<div class="fit-actions">` +
+    `<span class="fit-actions-label">足りない時の詰め方（店側の判断で選択。チェックすると、文字を小さくする前に詰めるので文字が元の大きさに戻ることがあります）</span>` +
+    `<label><input type="checkbox" id="compactExpiryStorage" ${cc.expiryStorage ? 'checked' : ''} onchange="onCompactChange()"> ${esc(expiryLabelNow)}と保存方法を1行にまとめる</label>` +
+    `<label><input type="checkbox" id="compactMaker" ${cc.maker ? 'checked' : ''} onchange="onCompactChange()"> 製造者（名称・住所）を1行にする</label>` +
+    `</div>`;
   el.innerHTML = html;
   el.classList.toggle('note', !names.length); // 入りきらない商品が無く縮小だけなら控えめな色
   el.classList.add('show');
@@ -1192,7 +1194,7 @@ function buildPages() {
     if (f.overflow) overflowNames.push(p.name);
     else if (f.pt < SEAL_FONT_GUIDE_PT - 1e-9) smallNames.push(`${p.name}（${f.pt}pt）`);
     const used = [f.compact.expiryStorage ? '期限＋保存方法を1行' : null, f.compact.maker ? '製造者を1行' : null].filter(Boolean);
-    if (used.length) compactNames.push(`${p.name}（${used.join('・')}）`);
+    if (used.length) compactNames.push(`${p.name}（${used.join('・')}・${f.pt}pt）`);
   });
   const paper = currentPaper();
   const per = paper.cols * paper.rows;
