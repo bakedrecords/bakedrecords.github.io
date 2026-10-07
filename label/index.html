@@ -243,6 +243,7 @@
   #screen-print-area .seal-overflow { outline: 0.6mm dashed #d00; outline-offset: -0.6mm; }
   .fit-warning { display: none; background: #fdecec; border: 1px solid #e3a3a3; color: #8a1c1c; border-radius: 8px; padding: 8px 12px; font-size: 13px; line-height: 1.6; margin-bottom: 10px; }
   .fit-warning.show { display: block; }
+  .fit-warning.note { background: #fff8e6; border-color: #e6cf8a; color: #6b4e00; } /* 目安未満の縮小だけ（入りきらない商品なし）*/
 
   /* 設定画面 */
   .sm-list { display: flex; flex-direction: column; gap: 6px; margin-bottom: 12px; }
@@ -505,7 +506,8 @@ const PX_PER_MM = 96 / 25.4;
 const TEXT_ML = 13.76;                // シール枠の位置を文字座標から逆算するための距離(mm)
 const FRAME_TOP0 = 13.04;             // 1行目のシール枠の上端(mm)
 const SEAL_FONT_PT = 6.2;             // シール内の基本の文字サイズ(pt)
-const SEAL_FONT_MIN_PT = 5.5;         // 自動縮小の下限(pt)。食品表示基準：表示可能面積150cm²以下は5.5pt以上
+const SEAL_FONT_MIN_PT = 5.0;         // 自動縮小の下限(pt)。ユーザー判断で5.0（2026-10-07）。食品表示基準の目安(5.5pt)を下回る商品は画面で知らせる
+const SEAL_FONT_GUIDE_PT = 5.5;       // 食品表示基準の目安(pt)：表示可能面積150cm²以下は5.5pt以上
 
 // ===== 対応用紙（ラベルシート）=====
 // 位置は「各列の左端 xs(mm)」と「上余白 top ＋ 行ピッチ pitchY(mm)」で表す。w/h は1面の外形(mm)。
@@ -1083,14 +1085,25 @@ function fitSeal(p) {
   }
 }
 let lastOverflowNames = []; // 直近の buildPages で入りきらなかった商品名（印刷前の確認に使う）
-function renderFitWarning(names) {
+function renderFitWarning(names, smallNames) {
   lastOverflowNames = names;
+  smallNames = smallNames || [];
   const el = document.getElementById('fitWarning');
   if (!el) return;
-  if (!names.length) { el.classList.remove('show'); el.innerHTML = ''; return; }
-  el.innerHTML = `⚠️ <b>枠に入りきらない商品があります：</b>${names.map(esc).join('、')}<br>` +
-    `文字を ${SEAL_FONT_MIN_PT}pt まで自動で小さくしましたが、それでも入りません（このまま印刷すると下の行が切れます）。<br>` +
-    `対処：原材料をまとめ表記で短くする／期限を「枠外に記載」にする／保存方法の文を短くする。`;
+  if (!names.length && !smallNames.length) { el.classList.remove('show', 'note'); el.innerHTML = ''; return; }
+  let html = '';
+  if (names.length) {
+    html += `⚠️ <b>枠に入りきらない商品があります：</b>${names.map(esc).join('、')}<br>` +
+      `文字を ${SEAL_FONT_MIN_PT}pt まで自動で小さくしましたが、それでも入りません（このまま印刷すると下の行が切れます）。<br>` +
+      `対処：原材料をまとめ表記で短くする／期限を「枠外に記載」にする／保存方法の文を短くする。`;
+  }
+  if (smallNames.length) {
+    html += (html ? '<br>' : '') +
+      `ℹ️ 文字を ${SEAL_FONT_GUIDE_PT}pt 未満に縮小した商品：${smallNames.map(esc).join('、')}` +
+      `<span class="hint">（食品表示基準の目安は ${SEAL_FONT_GUIDE_PT}pt 以上。読みにくければ原材料を短くするか、大きい用紙を）</span>`;
+  }
+  el.innerHTML = html;
+  el.classList.toggle('note', !names.length); // 入りきらない商品が無く縮小だけなら控えめな色
   el.classList.add('show');
 }
 function buildPages() {
@@ -1098,10 +1111,12 @@ function buildPages() {
   // 商品ごとに「枠に収まる文字サイズ」を先に求める（同じ商品のシールは内容が同じなので1回でOK）
   const fits = {};
   const overflowNames = [];
+  const smallNames = []; // 食品表示基準の目安(5.5pt)未満まで縮小した商品（商品名＋pt）
   cells.forEach(p => {
     if (!p || fits[p.id]) return;
     fits[p.id] = fitSeal(p);
     if (fits[p.id].overflow) overflowNames.push(p.name);
+    else if (fits[p.id].pt < SEAL_FONT_GUIDE_PT - 1e-9) smallNames.push(`${p.name}（${fits[p.id].pt}pt）`);
   });
   const paper = currentPaper();
   const per = paper.cols * paper.rows;
@@ -1135,7 +1150,7 @@ function buildPages() {
   const used = cells.filter(Boolean).length;
   document.getElementById('usageSummary').textContent = `配置 ${used} 面（スキップ ${layout.skip} 面）・用紙：${paper.name}${paper.beta ? '（β）' : ''}`;
   document.getElementById('pageLabel').textContent = `${previewPage + 1} / ${totalPages}`;
-  renderFitWarning(overflowNames);
+  renderFitWarning(overflowNames, smallNames);
 }
 function scalePreview() {
   const wrap = document.querySelector('.preview-wrap');
