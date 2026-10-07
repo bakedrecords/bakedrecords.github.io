@@ -239,6 +239,9 @@
   .seal-table .r-ing { height: 100%; }            /* 原材料名のマスが余白を吸収して伸びる */
   .seal-table .r-ing td { vertical-align: top; }  /* 内容は上寄せ */
   .seal-table .r-ing th { vertical-align: top; }    /* 「原材料名」ラベルも上寄せ */
+  /* 詰め方「行間を少し詰める」：行の高さとセルの上下余白を少し減らす（文字サイズは変えない） */
+  .seal-table.tight { line-height: 1.12; }
+  .seal-table.tight th, .seal-table.tight td { padding-top: 0.25mm; padding-bottom: 0.25mm; }
   /* 自動縮小しても枠に入りきらないシール：画面プレビューだけ赤い点線で知らせる（印刷には出ない） */
   #screen-print-area .seal-overflow { outline: 0.6mm dashed #d00; outline-offset: -0.6mm; }
   .fit-warning { display: none; background: #fdecec; border: 1px solid #e3a3a3; color: #8a1c1c; border-radius: 8px; padding: 8px 12px; font-size: 13px; line-height: 1.6; margin-bottom: 10px; }
@@ -572,7 +575,7 @@ let layout = {
   offsetX: 0,           // 印刷位置の微調整(mm)：＋で右、−で左
   offsetY: 0,           // 印刷位置の微調整(mm)：＋で下、−で上
   paperId: 'aone-24',   // 用紙（PAPERS のキー）。旧データに無ければ load() で 24面 に補完
-  compact: { expiryStorage: false, maker: false }, // 入りきらない時だけ使う詰め方：期限＋保存方法を1行／製造者を1行
+  compact: { tightLines: false, expiryStorage: false, maker: false }, // 入りきらない時だけ使う詰め方：行間を詰める／期限＋保存方法を1行／製造者を1行
 };
 let activeTagFilters = [];
 let sortSnapshot = {};      // 並び替え用に固定した使用回数 {productId: count}
@@ -634,7 +637,8 @@ function load() {
   if (!layout.expiry.label) layout.expiry.label = '賞味期限'; // 旧データ（見出しなし）は従来どおり「賞味期限」
   if (!layout.paperId || !PAPERS[layout.paperId]) layout.paperId = DEFAULT_PAPER_ID; // 旧データ（用紙なし）は従来どおり24面
   if (layout.skip > cellsPerPage() - 1) layout.skip = cellsPerPage() - 1;
-  if (!layout.compact) layout.compact = { expiryStorage: false, maker: false }; // 旧データは詰め方オフ
+  if (!layout.compact) layout.compact = { tightLines: false, expiryStorage: false, maker: false }; // 旧データは詰め方オフ
+  if (layout.compact.tightLines === undefined) layout.compact.tightLines = false;
 }
 function mkProduct(name, ingredients, tags, amount) {
   return { id: uid('p'), name, ingredients, amount: amount || '', tags: tags || [], pinned: false, usageCount: 0, createdAt: nowISO(), updatedAt: nowISO() };
@@ -980,16 +984,18 @@ function onPaperChange() {
 // --- 入りきらない時の詰め方 ---
 function syncCompactControls() {
   const c = layout.compact || {};
-  [['compactExpiryStorage', !!c.expiryStorage], ['compactMaker', !!c.maker]].forEach(([id, on]) => {
+  [['compactTightLines', !!c.tightLines], ['compactExpiryStorage', !!c.expiryStorage], ['compactMaker', !!c.maker]].forEach(([id, on]) => {
     const inp = document.getElementById(id);
     if (!inp) return;
     inp.checked = on;
   });
 }
 function onCompactChange() {
+  const chk = id => { const el = document.getElementById(id); return !!(el && el.checked); };
   layout.compact = {
-    expiryStorage: document.getElementById('compactExpiryStorage').checked,
-    maker: document.getElementById('compactMaker').checked,
+    tightLines: chk('compactTightLines'),
+    expiryStorage: chk('compactExpiryStorage'),
+    maker: chk('compactMaker'),
   };
   syncCompactControls();
   save();
@@ -1091,7 +1097,7 @@ function sealInner(p, fontPt, compact) {
   const makerRow = c.maker
     ? `<tr class="r-maker"><th>製造者</th><td>${esc(m.name)}${m.address ? '　' + esc(m.address) : ''}</td></tr>`
     : `<tr class="r-maker"><th>製造者</th><td>${esc(m.name)}<br>${esc(m.address)}</td></tr>`;
-  return `<table class="seal-table" style="font-size:${pt}pt">
+  return `<table class="seal-table${c.tightLines ? ' tight' : ''}" style="font-size:${pt}pt">
     <tr class="r-name"><th>名称</th><td>${esc(p.name)}</td></tr>
     ${p.amount ? `<tr><th>内容量</th><td>${esc(p.amount)}</td></tr>` : ''}
     <tr class="r-ing"><th>原材料名</th><td>${esc(p.ingredients)}</td></tr>
@@ -1112,12 +1118,13 @@ function getFitMeasureBox() {
   fitMeasureBox = b;
   return b;
 }
-// ユーザーが有効にした詰め方を、段階的に適用する順番で返す（[なし] → [期限＋保存方法1行] → [＋製造者1行]）
+// ユーザーが有効にした詰め方を、段階的に適用する順番で返す（[なし] → [行間を詰める] → [＋期限＋保存方法1行] → [＋製造者1行]）
 function compactStages() {
   const c = layout.compact || {};
   const stages = [{}];
   const cur = {};
-  if (c.expiryStorage) { cur.expiryStorage = true; stages.push(Object.assign({}, cur)); }
+  if (c.tightLines) { cur.tightLines = true; stages.push(Object.assign({}, cur)); }        // 1) 行間を少し詰める（いちばん目立たない）
+  if (c.expiryStorage) { cur.expiryStorage = true; stages.push(Object.assign({}, cur)); }  // 2) 期限＋保存方法を1行
   if (c.maker) { cur.maker = true; stages.push(Object.assign({}, cur)); }
   return stages;
 }
@@ -1173,6 +1180,7 @@ function renderFitWarning(names, smallNames, compactNames) {
   const expiryLabelNow = (layout.expiry && layout.expiry.label) || '賞味期限';
   html += `<div class="fit-actions">` +
     `<span class="fit-actions-label">足りない時の詰め方（店側の判断で選択。チェックすると、文字を小さくする前に詰めるので文字が元の大きさに戻ることがあります）</span>` +
+    `<label><input type="checkbox" id="compactTightLines" ${cc.tightLines ? 'checked' : ''} onchange="onCompactChange()"> 行間を少し詰める</label>` +
     `<label><input type="checkbox" id="compactExpiryStorage" ${cc.expiryStorage ? 'checked' : ''} onchange="onCompactChange()"> ${esc(expiryLabelNow)}と保存方法を1行にまとめる</label>` +
     `<label><input type="checkbox" id="compactMaker" ${cc.maker ? 'checked' : ''} onchange="onCompactChange()"> 製造者（名称・住所）を1行にする</label>` +
     `</div>`;
@@ -1193,7 +1201,7 @@ function buildPages() {
     fits[p.id] = f;
     if (f.overflow) overflowNames.push(p.name);
     else if (f.pt < SEAL_FONT_GUIDE_PT - 1e-9) smallNames.push(`${p.name}（${f.pt}pt）`);
-    const used = [f.compact.expiryStorage ? '期限＋保存方法を1行' : null, f.compact.maker ? '製造者を1行' : null].filter(Boolean);
+    const used = [f.compact.tightLines ? '行間を詰める' : null, f.compact.expiryStorage ? '期限＋保存方法を1行' : null, f.compact.maker ? '製造者を1行' : null].filter(Boolean);
     if (used.length) compactNames.push(`${p.name}（${used.join('・')}・${f.pt}pt）`);
   });
   const paper = currentPaper();
