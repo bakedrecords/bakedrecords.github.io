@@ -212,8 +212,7 @@
     overflow: hidden;
     box-sizing: border-box;
     color: #000;
-    transform: scale(0.99);          /* 中心固定で99%に縮小（印刷ズレの安全マージン） */
-    transform-origin: center center;
+    /* 等倍（100%）で印刷。位置は @page margin:0 で用紙にピッタリ合うため縮小しない。 */
   }
   .seal-table {
     width: 100%;
@@ -240,6 +239,10 @@
   .seal-table .r-ing { height: 100%; }            /* 原材料名のマスが余白を吸収して伸びる */
   .seal-table .r-ing td { vertical-align: top; }  /* 内容は上寄せ */
   .seal-table .r-ing th { vertical-align: top; }    /* 「原材料名」ラベルも上寄せ */
+  /* 自動縮小しても枠に入りきらないシール：画面プレビューだけ赤い点線で知らせる（印刷には出ない） */
+  #screen-print-area .seal-overflow { outline: 0.6mm dashed #d00; outline-offset: -0.6mm; }
+  .fit-warning { display: none; background: #fdecec; border: 1px solid #e3a3a3; color: #8a1c1c; border-radius: 8px; padding: 8px 12px; font-size: 13px; line-height: 1.6; margin-bottom: 10px; }
+  .fit-warning.show { display: block; }
 
   /* 設定画面 */
   .sm-list { display: flex; flex-direction: column; gap: 6px; margin-bottom: 12px; }
@@ -268,11 +271,14 @@
 
   @media print {
     @page { size: A4; margin: 0; }
+    html, body { margin: 0 !important; padding: 0 !important; }
     #app { display: none !important; }
     #paper-print-area { display: block !important; transform: none !important; }
     .print-page + .print-page { margin-top: 0; }
-    .print-page { page-break-after: always; }
-    .print-page:last-child { page-break-after: auto; }
+    /* 高さをA4(297mm)よりわずかに低くして、端数あふれによる空白2ページ目を防ぐ。
+       シールはmm絶対指定なので位置は変わらない（最下段でも約284mmに収まる）。 */
+    .print-page { height: 296mm; overflow: hidden; page-break-after: always; break-after: page; }
+    .print-page:last-child { page-break-after: auto; break-after: auto; }
   }
   #paper-print-area { display: none; }
 </style>
@@ -314,7 +320,17 @@
           <div class="panel">
             <h2>印刷の共通設定</h2>
             <div class="field">
-              <label>賞味期限</label>
+              <label>用紙（ラベルシート）</label>
+              <select id="paperSelect" onchange="onPaperChange()"></select>
+              <p class="hint" id="paperHint" style="margin-top:6px;"></p>
+            </div>
+            <div class="field">
+              <label>期限の表示</label>
+              <div class="radio-row" id="expiryLabelRadios" style="margin-bottom:6px;">
+                <label><input type="radio" name="expiryLabel" value="賞味期限" onchange="onExpiryLabelChange()"> 賞味期限</label>
+                <label><input type="radio" name="expiryLabel" value="消費期限" onchange="onExpiryLabelChange()"> 消費期限</label>
+              </div>
+              <p class="hint" style="margin:0 0 8px;">お弁当・惣菜など日持ちしない食品は「消費期限」、それ以外は「賞味期限」が一般的です。</p>
               <div class="radio-row" id="expiryRadios">
                 <label><input type="radio" name="expiry" value="today" onchange="onExpiryChange()"> 当日中</label>
                 <label><input type="radio" name="expiry" value="date" onchange="onExpiryChange()"> 日付指定</label>
@@ -342,7 +358,7 @@
               <label>上から何枚スキップするか（使いかけの用紙用）</label>
               <div class="inline">
                 <input type="number" id="skip" min="0" max="23" value="0" style="width:70px;" onchange="onSkipChange()">
-                <span class="hint">枚（0〜23）</span>
+                <span class="hint" id="skipHint">枚（0〜23）</span>
               </div>
             </div>
             <div class="field">
@@ -364,6 +380,7 @@
         </div>
         <div>
           <div class="panel">
+            <div class="fit-warning" id="fitWarning"></div>
             <div class="preview-info">
               <span id="usageSummary"></span>
               <div class="pager">
@@ -381,9 +398,16 @@
                 <div id="screen-print-area"></div>
               </div>
             </div>
-            <p class="hint" style="margin-top:10px;">
-              💡 印刷時は、ブラウザの印刷画面で「用紙サイズ：A4」「余白：なし」「倍率：100%（拡大縮小しない）」「ヘッダーとフッター：オフ」に設定してください。「送信先」で「PDFに保存」を選ぶとPDFになります。
-            </p>
+            <div class="hint" style="margin-top:10px; background:#fbf3ea; border:1px solid var(--line); border-radius:8px; padding:10px 12px;">
+              <b>🖨 印刷の前に、印刷画面の「詳細設定」で次を必ず確認してください：</b>
+              <ul style="margin:6px 0 0; padding-left:18px; line-height:1.8;">
+                <li><b style="color:var(--danger)">用紙サイズ ＝ A4</b>（Letter等になっていると、はみ出して2枚に分かれます）</li>
+                <li><b style="color:var(--danger)">余白 ＝ なし</b>（既定だと位置がズレます）</li>
+                <li><b>倍率 ＝ 100%</b>（「用紙に合わせる」は縮小されるのでNG）</li>
+                <li>ヘッダーとフッター ＝ オフ</li>
+              </ul>
+              <div style="margin-top:6px;">「送信先」で「PDFに保存」を選ぶとPDFになります。一度設定すれば、次回からは記憶されます。</div>
+            </div>
           </div>
         </div>
       </div>
@@ -476,12 +500,45 @@
 const COL_X = [19.76, 85.72, 151.69]; // 各列の文字x座標(mm)
 const ROW_Y0 = 13.05;                 // 行1の文字y座標(mm)
 const ROW_GAP = 33.87;                // 行の間隔(mm)
-const CELLS_PER_PAGE = 24;            // 3列 × 8行
 const PX_PER_MM = 96 / 25.4;
 // シール外形(枠)：文字座標から逆算（左余白6mm／列ピッチ65.97mm／一片66×33.9mm）
 const TEXT_ML = 13.76;                // シール枠の位置を文字座標から逆算するための距離(mm)
 const FRAME_TOP0 = 13.04;             // 1行目のシール枠の上端(mm)
-const SEAL_W = 66, SEAL_H = 33.9;     // 一片の外形(mm)
+const SEAL_FONT_PT = 6.2;             // シール内の基本の文字サイズ(pt)
+const SEAL_FONT_MIN_PT = 5.5;         // 自動縮小の下限(pt)。食品表示基準：表示可能面積150cm²以下は5.5pt以上
+
+// ===== 対応用紙（ラベルシート）=====
+// 位置は「各列の左端 xs(mm)」と「上余白 top ＋ 行ピッチ pitchY(mm)」で表す。w/h は1面の外形(mm)。
+// 24面は実機で合わせ込んだ実測値（上の定数）をそのまま使う。12面・10面はA-one公式寸法図の値（β＝実機未検証）。
+const PAPERS = {
+  'aone-24': {
+    name: 'A-one 28947 / 72224',
+    desc: '24面（3列×8段・66×33.9mm）',
+    cols: 3, rows: 8, w: 66, h: 33.9,
+    xs: COL_X.map(x => +(x - TEXT_ML).toFixed(2)),   // [6.00, 71.96, 137.93]
+    top: FRAME_TOP0, pitchY: ROW_GAP,
+    beta: false,
+  },
+  'aone-12': {
+    name: 'A-one 72212',
+    desc: '12面（2列×6段・86.4×42.3mm）',
+    cols: 2, rows: 6, w: 86.4, h: 42.3,
+    xs: [18.6, 105.0],                                // 左余白18.6・ラベル間隔0（18.6+86.4）
+    top: 21.2, pitchY: 42.3,
+    beta: true,
+  },
+  'aone-10': {
+    name: 'A-one 72210',
+    desc: '10面（2列×5段・86.4×50.8mm）',
+    cols: 2, rows: 5, w: 86.4, h: 50.8,
+    xs: [18.6, 105.0],
+    top: 21.2, pitchY: 50.8,
+    beta: true,
+  },
+};
+const DEFAULT_PAPER_ID = 'aone-24';
+function currentPaper() { return PAPERS[layout.paperId] || PAPERS[DEFAULT_PAPER_ID]; }
+function cellsPerPage() { const p = currentPaper(); return p.cols * p.rows; }
 
 const LS = {
   products: 'bakeryLabels_products',
@@ -497,10 +554,11 @@ let manufacturer = { name: '', address: '' };
 let layout = {
   items: [],            // [{productId, count}]
   skip: 0,
-  expiry: { type: 'today', date: '', days: 3 },
+  expiry: { type: 'today', date: '', days: 3, label: '賞味期限' }, // label＝シールの見出し（賞味期限／消費期限）
   storageMethodId: null,
   offsetX: 0,           // 印刷位置の微調整(mm)：＋で右、−で左
   offsetY: 0,           // 印刷位置の微調整(mm)：＋で下、−で上
+  paperId: 'aone-24',   // 用紙（PAPERS のキー）。旧データに無ければ load() で 24面 に補完
 };
 let activeTagFilters = [];
 let sortSnapshot = {};      // 並び替え用に固定した使用回数 {productId: count}
@@ -558,6 +616,10 @@ function load() {
     layout.storageMethodId = storageMethods[0].id;
   }
   delete layout.makerOverride; // 旧バージョンの不要データを掃除（製造者は設定に一元化）
+  if (!layout.expiry) layout.expiry = { type: 'today', date: '', days: 3 };
+  if (!layout.expiry.label) layout.expiry.label = '賞味期限'; // 旧データ（見出しなし）は従来どおり「賞味期限」
+  if (!layout.paperId || !PAPERS[layout.paperId]) layout.paperId = DEFAULT_PAPER_ID; // 旧データ（用紙なし）は従来どおり24面
+  if (layout.skip > cellsPerPage() - 1) layout.skip = cellsPerPage() - 1;
 }
 function mkProduct(name, ingredients, tags, amount) {
   return { id: uid('p'), name, ingredients, amount: amount || '', tags: tags || [], pinned: false, usageCount: 0, createdAt: nowISO(), updatedAt: nowISO() };
@@ -743,6 +805,7 @@ function saveProduct() {
 
 // ===== レイアウト画面 =====
 function renderLayoutScreen() {
+  renderPaperSelect(); // 用紙セレクト・β注意・スキップ上限を最新に
   // 賞味期限ラジオ
   document.querySelectorAll('input[name="expiry"]').forEach(r => { r.checked = (r.value === layout.expiry.type); });
   syncExpiryControls();
@@ -841,7 +904,8 @@ function resetLayout() {
 }
 function onSkipChange() {
   let n = parseInt(document.getElementById('skip').value, 10);
-  if (isNaN(n) || n < 0) n = 0; if (n > 23) n = 23;
+  const maxSkip = cellsPerPage() - 1;
+  if (isNaN(n) || n < 0) n = 0; if (n > maxSkip) n = maxSkip;
   layout.skip = n;
   document.getElementById('skip').value = n;
   save();
@@ -861,6 +925,40 @@ function resetOffset() {
   document.getElementById('offsetY').value = 0;
   save();
   buildPages();
+}
+
+// --- 用紙（ラベルシート）---
+function renderPaperSelect() {
+  const sel = document.getElementById('paperSelect');
+  if (!sel) return;
+  sel.innerHTML = Object.keys(PAPERS).map(id => {
+    const p = PAPERS[id];
+    return `<option value="${id}">${esc(p.name)} — ${esc(p.desc)}${p.beta ? '【β・実機未検証】' : ''}</option>`;
+  }).join('');
+  sel.value = PAPERS[layout.paperId] ? layout.paperId : DEFAULT_PAPER_ID;
+  const p = currentPaper();
+  const hint = document.getElementById('paperHint');
+  if (hint) {
+    hint.innerHTML = p.beta
+      ? `⚠️ <b>ベータ版：この用紙は実機で未検証です。</b>A-one公式の寸法（左余白 ${p.xs[0]}mm・上余白 ${p.top}mm）で配置しています。本番前に<b>1枚テスト印刷</b>して位置を確認し、ズレたら下の「印刷位置の微調整」で合わせてください。`
+      : '実機で位置を確認済みの用紙です。';
+  }
+  syncSkipLimit();
+}
+function syncSkipLimit() {
+  const maxSkip = cellsPerPage() - 1;
+  const inp = document.getElementById('skip');
+  if (inp) { inp.max = maxSkip; if (layout.skip > maxSkip) layout.skip = maxSkip; inp.value = layout.skip; }
+  const h = document.getElementById('skipHint');
+  if (h) h.textContent = `枚（0〜${maxSkip}）`;
+}
+function onPaperChange() {
+  const id = document.getElementById('paperSelect').value;
+  layout.paperId = PAPERS[id] ? id : DEFAULT_PAPER_ID;
+  previewPage = 0;
+  renderPaperSelect();
+  save();
+  refreshSelection();
 }
 
 // --- 賞味期限 ---
@@ -884,6 +982,20 @@ function syncExpiryControls() {
   if (layout.expiry.date) document.getElementById('expiryDate').value = layout.expiry.date;
   document.getElementById('expiryDays').value = layout.expiry.days;
   document.getElementById('expiryPreview').textContent = expiryText();
+  // 見出し（賞味期限／消費期限）のラジオも同期
+  const lab = layout.expiry.label || '賞味期限';
+  document.querySelectorAll('#expiryLabelRadios label').forEach(l => {
+    const inp = l.querySelector('input');
+    inp.checked = (inp.value === lab);
+    l.classList.toggle('sel', inp.value === lab);
+  });
+}
+function onExpiryLabelChange() {
+  const r = document.querySelector('input[name="expiryLabel"]:checked');
+  layout.expiry.label = r ? r.value : '賞味期限';
+  syncExpiryControls();
+  save();
+  buildPages();
 }
 function expiryText() {
   const e = layout.expiry;
@@ -928,34 +1040,86 @@ function buildCells() {
   });
   return cells;
 }
-function sealInner(p) {
+function sealInner(p, fontPt) {
   const storage = storageMethods.find(s => s.id === layout.storageMethodId);
   const m = currentMaker();
-  return `<table class="seal-table">
+  const pt = fontPt || SEAL_FONT_PT;
+  const expiryLabel = (layout.expiry && layout.expiry.label) || '賞味期限';
+  return `<table class="seal-table" style="font-size:${pt}pt">
     <tr class="r-name"><th>名称</th><td>${esc(p.name)}</td></tr>
     ${p.amount ? `<tr><th>内容量</th><td>${esc(p.amount)}</td></tr>` : ''}
     <tr class="r-ing"><th>原材料名</th><td>${esc(p.ingredients)}</td></tr>
-    <tr><th>賞味期限</th><td>${esc(expiryText())}</td></tr>
+    <tr><th>${esc(expiryLabel)}</th><td>${esc(expiryText())}</td></tr>
     <tr><th>保存方法</th><td>${esc(storage ? storage.label : '')}</td></tr>
     <tr class="r-maker"><th>製造者</th><td>${esc(m.name)}<br>${esc(m.address)}</td></tr>
   </table>`;
 }
+
+// ===== 自動縮小：入りきらないシールだけ文字を小さくして枠に収める =====
+// 測定用の箱（画面外・非表示）。#app の中に置くので印刷時は #app ごと非表示になる。
+let fitMeasureBox = null;
+function getFitMeasureBox() {
+  if (fitMeasureBox) return fitMeasureBox;
+  const b = document.createElement('div');
+  b.className = 'seal-box';
+  b.style.cssText = `position:fixed; left:-10000px; top:0; visibility:hidden; pointer-events:none;`; // サイズは fitSeal で用紙に合わせる
+  (document.getElementById('app') || document.body).appendChild(b);
+  fitMeasureBox = b;
+  return b;
+}
+// 商品1件分のシールが枠に収まる文字サイズを探す（6.2pt → 0.1pt刻みで下げる → 下限5.5pt）
+// 戻り値 { pt: 使う文字サイズ, overflow: 下限まで下げても入りきらないか }
+function fitSeal(p) {
+  const box = getFitMeasureBox();
+  const paper = currentPaper();
+  box.style.width = paper.w + 'mm'; box.style.height = paper.h + 'mm'; // 選択中の用紙の1面サイズで測る
+  let pt = SEAL_FONT_PT;
+  for (;;) {
+    box.innerHTML = sealInner(p, pt);
+    const t = box.querySelector('table');
+    if (t.offsetHeight <= box.clientHeight + 0.5) return { pt, overflow: false };
+    if (pt <= SEAL_FONT_MIN_PT + 1e-9) return { pt, overflow: true };
+    pt = Math.max(SEAL_FONT_MIN_PT, +(pt - 0.1).toFixed(1));
+  }
+}
+let lastOverflowNames = []; // 直近の buildPages で入りきらなかった商品名（印刷前の確認に使う）
+function renderFitWarning(names) {
+  lastOverflowNames = names;
+  const el = document.getElementById('fitWarning');
+  if (!el) return;
+  if (!names.length) { el.classList.remove('show'); el.innerHTML = ''; return; }
+  el.innerHTML = `⚠️ <b>枠に入りきらない商品があります：</b>${names.map(esc).join('、')}<br>` +
+    `文字を ${SEAL_FONT_MIN_PT}pt まで自動で小さくしましたが、それでも入りません（このまま印刷すると下の行が切れます）。<br>` +
+    `対処：原材料をまとめ表記で短くする／期限を「枠外に記載」にする／保存方法の文を短くする。`;
+  el.classList.add('show');
+}
 function buildPages() {
   const cells = buildCells();
-  const totalPages = Math.max(1, Math.ceil(cells.length / CELLS_PER_PAGE));
+  // 商品ごとに「枠に収まる文字サイズ」を先に求める（同じ商品のシールは内容が同じなので1回でOK）
+  const fits = {};
+  const overflowNames = [];
+  cells.forEach(p => {
+    if (!p || fits[p.id]) return;
+    fits[p.id] = fitSeal(p);
+    if (fits[p.id].overflow) overflowNames.push(p.name);
+  });
+  const paper = currentPaper();
+  const per = paper.cols * paper.rows;
+  const totalPages = Math.max(1, Math.ceil(cells.length / per));
   if (previewPage >= totalPages) previewPage = totalPages - 1;
   if (previewPage < 0) previewPage = 0;
 
   let html = '';
   for (let pg = 0; pg < totalPages; pg++) {
     html += '<div class="print-page">';
-    for (let i = 0; i < CELLS_PER_PAGE; i++) {
-      const p = cells[pg * CELLS_PER_PAGE + i];
+    for (let i = 0; i < per; i++) {
+      const p = cells[pg * per + i];
       if (!p) continue;
-      const col = i % 3, row = Math.floor(i / 3);
-      const fx = COL_X[col] - TEXT_ML + (layout.offsetX || 0);     // 枠の左端＋全体オフセット
-      const fy = FRAME_TOP0 + ROW_GAP * row + (layout.offsetY || 0); // 枠の上端＋全体オフセット
-      html += `<div class="seal-box" style="left:${fx}mm; top:${fy}mm; width:${SEAL_W}mm; height:${SEAL_H}mm;">${sealInner(p)}</div>`;
+      const col = i % paper.cols, row = Math.floor(i / paper.cols);
+      const fx = paper.xs[col] + (layout.offsetX || 0);                   // 枠の左端＋全体オフセット
+      const fy = paper.top + paper.pitchY * row + (layout.offsetY || 0);  // 枠の上端＋全体オフセット
+      const f = fits[p.id];
+      html += `<div class="seal-box${f.overflow ? ' seal-overflow' : ''}" style="left:${fx}mm; top:${fy}mm; width:${paper.w}mm; height:${paper.h}mm;">${sealInner(p, f.pt)}</div>`;
     }
     html += '</div>';
   }
@@ -969,8 +1133,9 @@ function buildPages() {
 
   // 情報表示
   const used = cells.filter(Boolean).length;
-  document.getElementById('usageSummary').textContent = `配置 ${used} 面（スキップ ${layout.skip} 面）`;
+  document.getElementById('usageSummary').textContent = `配置 ${used} 面（スキップ ${layout.skip} 面）・用紙：${paper.name}${paper.beta ? '（β）' : ''}`;
   document.getElementById('pageLabel').textContent = `${previewPage + 1} / ${totalPages}`;
+  renderFitWarning(overflowNames);
 }
 function scalePreview() {
   const wrap = document.querySelector('.preview-wrap');
@@ -992,6 +1157,11 @@ function doPrint() {
   buildPages();
   const used = buildCells().filter(Boolean).length;
   if (!used) { alert('配置されたシールがありません。商品を追加してください。'); return; }
+  if (lastOverflowNames.length) {
+    const ok = confirm('⚠️ 枠に入りきらない商品があります：\n' + lastOverflowNames.join('、') +
+      '\n\nこのまま印刷すると、はみ出した部分（下の行）は印刷されません。\n印刷を続けますか？');
+    if (!ok) return;
+  }
   window.print();
 }
 
@@ -1116,6 +1286,7 @@ save();
 takeSortSnapshot();
 renderProducts();
 renderCart();
+renderPaperSelect();
 // 商品編集モーダルは「保存」「キャンセル」でのみ閉じる（画面外クリックでは閉じない＝誤操作防止）
 </script>
 </body>
